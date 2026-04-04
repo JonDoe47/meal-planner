@@ -1,19 +1,17 @@
 <template>
   <div class="dish-manage">
-    <van-nav-bar title="菜品管理" />
-    <!-- 悬浮新增按钮 -->
-    <div class="fab" @click="openAdd">
-      <van-icon name="plus" size="24" color="white" />
-      <span>新增菜品</span>
+    <div class="page-header">
+      <div class="header-title">菜品管理</div>
+      <div class="header-count">共 {{ dishes.length }} 道菜</div>
     </div>
 
-    <div class="filter-bar">
-      <van-tabs v-model:active="activeCategory" color="#ff6b35" shrink @change="loadDishes">
-        <van-tab title="全部" name="all" />
-        <van-tab v-for="cat in categories" :key="cat.id" :title="cat.name" :name="cat.id" />
-      </van-tabs>
-    </div>
+    <!-- 分类筛选 -->
+    <van-tabs v-model:active="activeCategory" color="#2563eb" shrink sticky offset-top="54" @change="loadDishes">
+      <van-tab title="全部" name="all" />
+      <van-tab v-for="cat in categories" :key="cat.id" :title="cat.name" :name="cat.id" />
+    </van-tabs>
 
+    <!-- 菜品列表 -->
     <div class="dish-list">
       <div v-for="dish in dishes" :key="dish.id" class="dish-item">
         <div class="dish-img-wrap">
@@ -22,100 +20,107 @@
         </div>
         <div class="dish-info">
           <div class="dish-name">{{ dish.name }}</div>
-          <van-tag type="primary" plain size="small">{{ dish.category.name }}</van-tag>
-          <van-tag v-if="dish.bvid" type="danger" plain size="small" style="margin-left:4px">有视频</van-tag>
+          <div class="dish-tags">
+            <van-tag type="primary" plain size="small">{{ dish.category.name }}</van-tag>
+            <van-tag v-if="dish.bvid" type="danger" plain size="small" style="margin-left:4px">B站视频</van-tag>
+          </div>
+          <div class="dish-desc" v-if="dish.description">{{ dish.description }}</div>
         </div>
         <div class="dish-actions">
           <van-button size="mini" type="primary" plain @click="openEdit(dish)">编辑</van-button>
-          <van-button size="mini" type="danger" plain @click="deleteDish(dish.id)" style="margin-top:4px">删除</van-button>
+          <van-button size="mini" type="danger" plain @click="deleteDish(dish.id)" style="margin-top:6px">删除</van-button>
         </div>
       </div>
-      <van-empty v-if="dishes.length === 0" description="暂无菜品" />
+      <van-empty v-if="dishes.length === 0" description="暂无菜品，点击右下角新增" />
+    </div>
+
+    <!-- FAB -->
+    <div class="fab" @click="openAdd">
+      <van-icon name="plus" size="22" color="white" />
+      <span>新增菜品</span>
     </div>
 
     <!-- 新增/编辑弹窗 -->
-    <van-popup v-model:show="showForm" position="bottom" :style="{ height: '92%', borderRadius: '16px 16px 0 0' }" :close-on-click-overlay="false">
-      <div class="form-popup">
-        <div class="form-header">
-          <span>{{ editing ? '编辑菜品' : '新增菜品' }}</span>
-          <van-icon name="cross" size="20" @click="showForm = false" />
-        </div>
+    <van-popup
+      v-model:show="showForm"
+      position="bottom"
+      :style="{ height: '92%', borderRadius: '20px 20px 0 0' }"
+      :close-on-click-overlay="false"
+    >
+      <div class="form-wrap">
+        <div class="form-drag-bar"></div>
+        <div class="form-title">{{ editing ? '编辑菜品' : '新增菜品' }}</div>
 
-        <div class="form-body">
+        <!-- 图片预览区 -->
+        <div class="img-zone" @click="!previewImage && triggerUpload()">
+          <img v-if="previewImage" :src="previewImage" class="preview-img" />
+          <div v-else class="img-placeholder">
+            <van-icon name="photograph" size="36" color="#bfdbfe" />
+            <div style="font-size:13px;color:#94a3b8;margin-top:8px">点击上传图片</div>
+          </div>
+          <div class="img-overlay" v-if="previewImage">
+            <van-button size="mini" plain @click.stop="triggerUpload()" style="margin-right:8px;color:white;border-color:white">换图</van-button>
+            <van-button size="mini" plain @click.stop="removeImage()" style="color:white;border-color:white">删除</van-button>
+          </div>
+        </div>
+        <input ref="fileInput" type="file" accept="image/*" style="display:none" @change="onFileChange" />
+
+        <div class="form-fields">
           <!-- 菜品名称 -->
-          <div class="field-group">
-            <div class="field-label">菜品名称 <span class="required">*</span></div>
-            <van-field v-model="form.name" placeholder="请输入菜品名称" :class="{ 'field-error': errors.name }" />
-            <div class="error-tip" v-if="errors.name">请输入菜品名称</div>
+          <div class="field-item">
+            <div class="field-label">菜品名称 <span class="req">*</span></div>
+            <van-field v-model="form.name" placeholder="请输入菜品名称" class="f-input" :class="{ error: errors.name }" />
+            <div class="err-msg" v-if="errors.name">请输入菜品名称</div>
           </div>
 
-          <!-- 分类选择 -->
-          <div class="field-group">
-            <div class="field-label">菜品分类 <span class="required">*</span></div>
-            <div class="cat-select" :class="{ 'field-error': errors.categoryId }" @click="showCatPicker = true">
-              <span :class="form.categoryId ? 'cat-value' : 'cat-placeholder'">
+          <!-- 分类 -->
+          <div class="field-item">
+            <div class="field-label">菜品分类 <span class="req">*</span></div>
+            <div class="select-box" :class="{ error: errors.categoryId }" @click="showCatPicker = true">
+              <span :style="{ color: form.categoryId ? '#1e293b' : '#c8c9cc' }">
                 {{ selectedCategoryName || '请选择分类' }}
               </span>
-              <van-icon name="arrow" color="#999" />
+              <van-icon name="arrow-down" color="#94a3b8" />
             </div>
-            <div class="error-tip" v-if="errors.categoryId">请选择分类</div>
+            <div class="err-msg" v-if="errors.categoryId">请选择分类</div>
           </div>
 
           <!-- B站链接 -->
-          <div class="field-group">
+          <div class="field-item">
             <div class="field-label">B站视频链接（可选）</div>
-            <div class="bili-input-row">
+            <div class="bili-row">
               <van-field
                 v-model="form.biliUrl"
-                placeholder="粘贴B站链接或BV号，自动获取封面"
+                placeholder="粘贴B站链接，保存时自动获取封面"
                 clearable
-                class="bili-field"
-                @update:model-value="onBiliUrlChange"
+                class="f-input bili-input"
               />
-              <van-button
-                size="small"
-                type="danger"
-                :loading="fetchingCover"
-                :disabled="!form.biliUrl"
-                @click="fetchBiliCover"
-                class="bili-btn"
-              >获取封面</van-button>
             </div>
-            <div class="bvid-tip" v-if="form.bvid">已识别 BV号：{{ form.bvid }}</div>
-          </div>
-
-          <!-- 菜品图片 -->
-          <div class="field-group">
-            <div class="field-label">菜品图片</div>
-            <div class="img-area">
-              <div v-if="previewImage" class="img-preview-wrap">
-                <img :src="previewImage" class="img-preview" />
-                <van-icon name="cross" class="img-remove" @click="removeImage" />
-              </div>
-              <van-uploader v-else :after-read="onFileRead" accept="image/*">
-                <div class="upload-btn">
-                  <van-icon name="photograph" size="28" color="#ccc" />
-                  <div style="font-size:12px;color:#999;margin-top:4px">上传图片</div>
-                </div>
-              </van-uploader>
+            <div class="bili-tip" v-if="parsedBvid">
+              <van-icon name="passed" color="#16a34a" size="13" />
+              已识别 {{ parsedBvid }}
             </div>
           </div>
 
           <!-- 描述 -->
-          <div class="field-group">
+          <div class="field-item">
             <div class="field-label">描述（可选）</div>
-            <van-field v-model="form.description" type="textarea" placeholder="菜品描述..." rows="3" />
+            <van-field v-model="form.description" type="textarea" placeholder="菜品描述、做法小记..." rows="3" class="f-input" />
           </div>
 
-          <van-button type="primary" round block :loading="formLoading" @click="saveDish" style="margin-top:8px">
-            保存菜品
-          </van-button>
+          <van-button
+            type="primary" round block
+            :loading="formLoading"
+            :loading-text="loadingText"
+            @click="saveDish"
+            style="margin-top: 8px; height: 48px; font-size: 16px; font-weight: 600;"
+          >保存菜品</van-button>
         </div>
       </div>
     </van-popup>
 
     <!-- 分类选择器 -->
-    <van-popup v-model:show="showCatPicker" position="bottom">
+    <van-popup v-model:show="showCatPicker" position="bottom" round>
       <van-picker :columns="categoryOptions" @confirm="onCatConfirm" @cancel="showCatPicker = false" />
     </van-popup>
   </div>
@@ -132,45 +137,38 @@ const activeCategory = ref('all')
 const showForm = ref(false)
 const editing = ref(null)
 const formLoading = ref(false)
-const fetchingCover = ref(false)
+const loadingText = ref('保存中...')
 const showCatPicker = ref(false)
-const imageFile = ref(null)       // 用户手动上传的文件
-const biliImageUrl = ref('')      // B站自动获取的图片路径
-const previewImage = ref('')      // 当前预览图（优先展示）
+const fileInput = ref(null)
+const imageFile = ref(null)
+const biliImageUrl = ref('')
+const previewImage = ref('')
 const errors = ref({ name: false, categoryId: false })
 
-const form = ref({ name: '', categoryId: null, biliUrl: '', bvid: '', description: '' })
+const form = ref({ name: '', categoryId: null, biliUrl: '', description: '' })
 
+// BUG FIX: 用 Number() 转换确保类型匹配
 const categoryOptions = computed(() => categories.value.map(c => ({ text: c.name, value: c.id })))
-const selectedCategoryName = computed(() => categories.value.find(c => c.id === form.value.categoryId)?.name || '')
+const selectedCategoryName = computed(() => {
+  if (!form.value.categoryId) return ''
+  return categories.value.find(c => c.id === Number(form.value.categoryId))?.name || ''
+})
 
-function onBiliUrlChange() {
-  // 实时解析BV号
-  const match = form.value.biliUrl.match(/BV[a-zA-Z0-9]+/)
-  form.value.bvid = match ? match[0] : ''
-}
+// 实时解析BV号
+const parsedBvid = computed(() => {
+  const match = form.value.biliUrl?.match(/BV[a-zA-Z0-9]+/)
+  return match ? match[0] : ''
+})
 
-async function fetchBiliCover() {
-  if (!form.value.biliUrl) return
-  fetchingCover.value = true
-  try {
-    const res = await biliApi.getCover(form.value.biliUrl)
-    form.value.bvid = res.bvid
-    biliImageUrl.value = res.imageUrl
-    previewImage.value = res.imageUrl
-    imageFile.value = null
-    showToast({ type: 'success', message: '封面获取成功！' })
-  } catch (e) {
-    showToast({ type: 'fail', message: e.message || '获取封面失败' })
-  } finally {
-    fetchingCover.value = false
-  }
-}
+function triggerUpload() { fileInput.value?.click() }
 
-function onFileRead(file) {
-  imageFile.value = file.file
+function onFileChange(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  imageFile.value = file
   biliImageUrl.value = ''
-  previewImage.value = URL.createObjectURL(file.file)
+  previewImage.value = URL.createObjectURL(file)
+  e.target.value = ''
 }
 
 function removeImage() {
@@ -179,8 +177,9 @@ function removeImage() {
   previewImage.value = ''
 }
 
+// BUG FIX: 确保 categoryId 用 Number 存储
 function onCatConfirm({ selectedOptions }) {
-  form.value.categoryId = selectedOptions[0].value
+  form.value.categoryId = Number(selectedOptions[0].value)
   errors.value.categoryId = false
   showCatPicker.value = false
 }
@@ -193,10 +192,8 @@ function validate() {
 
 function openAdd() {
   editing.value = null
-  form.value = { name: '', categoryId: null, biliUrl: '', bvid: '', description: '' }
-  imageFile.value = null
-  biliImageUrl.value = ''
-  previewImage.value = ''
+  form.value = { name: '', categoryId: null, biliUrl: '', description: '' }
+  imageFile.value = null; biliImageUrl.value = ''; previewImage.value = ''
   errors.value = { name: false, categoryId: false }
   showForm.value = true
 }
@@ -205,9 +202,8 @@ function openEdit(dish) {
   editing.value = dish
   form.value = {
     name: dish.name,
-    categoryId: dish.categoryId,
+    categoryId: Number(dish.categoryId),
     biliUrl: dish.bvid ? `https://www.bilibili.com/video/${dish.bvid}` : '',
-    bvid: dish.bvid || '',
     description: dish.description || ''
   }
   imageFile.value = null
@@ -223,32 +219,48 @@ async function saveDish() {
     return
   }
   formLoading.value = true
+
   try {
+    // 有B站链接且没有手动上传图片时，自动获取封面
+    if (parsedBvid.value && !imageFile.value && !biliImageUrl.value) {
+      loadingText.value = '正在获取B站封面...'
+      try {
+        const res = await biliApi.getCover(form.value.biliUrl)
+        biliImageUrl.value = res.imageUrl
+        previewImage.value = res.imageUrl
+      } catch {
+        showToast({ message: '封面获取失败，将不带图片保存', duration: 2000 })
+      }
+    }
+
+    loadingText.value = '保存中...'
     const fd = new FormData()
     fd.append('name', form.value.name.trim())
     fd.append('categoryId', form.value.categoryId)
-    fd.append('bvid', form.value.bvid || '')
+    fd.append('bvid', parsedBvid.value || '')
     fd.append('description', form.value.description || '')
-    // 优先用手动上传的图片，其次用B站封面路径
     if (imageFile.value) {
       fd.append('image', imageFile.value)
     } else if (biliImageUrl.value) {
       fd.append('existingImageUrl', biliImageUrl.value)
     }
+
     if (editing.value) await dishApi.update(editing.value.id, fd)
     else await dishApi.create(fd)
-    showToast({ type: 'success', message: '保存成功' })
+
+    showToast({ type: 'success', message: '保存成功！' })
     showForm.value = false
     loadDishes()
   } catch (e) {
     showToast({ type: 'fail', message: e.message || '保存失败' })
   } finally {
     formLoading.value = false
+    loadingText.value = '保存中...'
   }
 }
 
 async function deleteDish(id) {
-  await showConfirmDialog({ title: '确认', message: '确定删除该菜品吗？' })
+  await showConfirmDialog({ title: '确认删除', message: '确定要删除这道菜吗？' })
   await dishApi.delete(id)
   showToast({ type: 'success', message: '删除成功' })
   loadDishes()
@@ -266,42 +278,82 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.dish-manage { padding-bottom: 80px; }
-.fab { position: fixed; bottom: 70px; right: 16px; background: #ff6b35; color: white; border-radius: 28px; padding: 12px 20px; display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 16px rgba(255,107,53,0.45); z-index: 999; cursor: pointer; }
+.dish-manage { min-height: 100vh; background: var(--bg); padding-bottom: 90px; }
+.page-header {
+  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+  padding: 16px 20px;
+  display: flex; justify-content: space-between; align-items: center;
+  color: white;
+}
+.header-title { font-size: 18px; font-weight: 700; }
+.header-count { font-size: 13px; opacity: 0.8; }
+
 .dish-list { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-.dish-item { display: flex; align-items: center; background: white; border-radius: 12px; padding: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); gap: 12px; }
-.dish-img-wrap { width: 64px; height: 64px; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+.dish-item {
+  display: flex; align-items: center; background: white;
+  border-radius: 14px; padding: 12px; box-shadow: var(--shadow); gap: 12px;
+}
+.dish-img-wrap { width: 72px; height: 72px; border-radius: 10px; overflow: hidden; flex-shrink: 0; }
 .dish-img { width: 100%; height: 100%; object-fit: cover; }
-.dish-no-img { width: 100%; height: 100%; background: #f5f5f5; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.dish-no-img { width: 100%; height: 100%; background: var(--primary-light); display: flex; align-items: center; justify-content: center; font-size: 28px; }
 .dish-info { flex: 1; min-width: 0; }
-.dish-name { font-weight: 600; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dish-name { font-weight: 600; font-size: 15px; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dish-tags { margin-bottom: 4px; }
+.dish-desc { font-size: 11px; color: var(--text2); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dish-actions { display: flex; flex-direction: column; flex-shrink: 0; }
 
-.form-popup { height: 100%; display: flex; flex-direction: column; }
-.form-header { display: flex; justify-content: space-between; align-items: center; padding: 16px; font-size: 16px; font-weight: 700; border-bottom: 1px solid #f0f0f0; flex-shrink: 0; }
-.form-body { flex: 1; overflow-y: auto; padding: 16px; }
+.fab {
+  position: fixed; bottom: 72px; right: 20px;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: white; border-radius: 28px;
+  padding: 13px 20px;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 15px; font-weight: 600;
+  box-shadow: 0 6px 20px rgba(37,99,235,0.4);
+  z-index: 100; cursor: pointer;
+}
 
-.field-group { margin-bottom: 16px; }
-.field-label { font-size: 14px; color: #333; font-weight: 500; margin-bottom: 8px; }
-.required { color: #ee0a24; }
-.error-tip { font-size: 12px; color: #ee0a24; margin-top: 4px; }
+.form-wrap { height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+.form-drag-bar { width: 36px; height: 4px; background: #e2e8f0; border-radius: 2px; margin: 12px auto 0; flex-shrink: 0; }
+.form-title { text-align: center; font-size: 16px; font-weight: 700; color: var(--text1); padding: 12px 0 8px; flex-shrink: 0; }
 
-.cat-select { display: flex; justify-content: space-between; align-items: center; background: #f7f8fa; border-radius: 8px; padding: 12px 14px; border: 1px solid transparent; }
-.cat-select.field-error { border-color: #ee0a24; }
-.cat-placeholder { color: #c8c9cc; font-size: 14px; }
-.cat-value { color: #323233; font-size: 14px; }
+.img-zone {
+  margin: 0 16px;
+  height: 160px;
+  background: white;
+  border-radius: 14px;
+  border: 2px dashed #bfdbfe;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden; cursor: pointer;
+  flex-shrink: 0;
+}
+.preview-img { width: 100%; height: 100%; object-fit: cover; }
+.img-placeholder { text-align: center; }
+.img-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.2s;
+}
+.img-zone:hover .img-overlay { opacity: 1; }
 
-.bili-input-row { display: flex; gap: 8px; align-items: center; }
-.bili-field { flex: 1; background: #f7f8fa; border-radius: 8px; }
-.bili-btn { flex-shrink: 0; }
-.bvid-tip { font-size: 12px; color: #07c160; margin-top: 6px; }
+.form-fields { flex: 1; overflow-y: auto; padding: 16px; }
+.field-item { margin-bottom: 16px; }
+.field-label { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px; }
+.req { color: #ef4444; }
+.err-msg { font-size: 12px; color: #ef4444; margin-top: 4px; }
 
-.img-area { display: flex; gap: 12px; }
-.img-preview-wrap { position: relative; width: 100px; height: 100px; border-radius: 8px; overflow: hidden; }
-.img-preview { width: 100%; height: 100%; object-fit: cover; }
-.img-remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.5); color: white; border-radius: 50%; padding: 2px; }
-.upload-btn { width: 100px; height: 100px; border: 1px dashed #ddd; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f7f8fa; }
+.f-input { background: white; border-radius: 10px; border: 1.5px solid var(--border); }
+.f-input.error { border-color: #ef4444; }
 
-:deep(.van-field) { background: #f7f8fa; border-radius: 8px; }
-:deep(.van-field.field-error) { border: 1px solid #ee0a24; }
+.select-box {
+  background: white; border-radius: 10px; border: 1.5px solid var(--border);
+  padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;
+  font-size: 14px; cursor: pointer;
+}
+.select-box.error { border-color: #ef4444; }
+
+.bili-row { display: flex; gap: 8px; align-items: center; }
+.bili-input { flex: 1; }
+.bili-tip { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #16a34a; margin-top: 6px; }
 </style>

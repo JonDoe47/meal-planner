@@ -3,7 +3,7 @@
     <div class="page-content">
       <router-view />
     </div>
-    <van-tabbar v-model="active" active-color="#ff6b35" @change="onTabChange">
+    <van-tabbar v-model="active" active-color="#2563eb" inactive-color="#94a3b8" @change="onTabChange">
       <van-tabbar-item icon="chart-trending-o" name="dashboard">概览</van-tabbar-item>
       <van-tabbar-item icon="food-o" name="dishes">菜品</van-tabbar-item>
       <van-tabbar-item icon="apps-o" name="categories">分类</van-tabbar-item>
@@ -22,8 +22,7 @@ const route = useRoute()
 const active = ref('dashboard')
 
 watch(() => route.path, (path) => {
-  const seg = path.split('/')[2]
-  active.value = seg || 'dashboard'
+  active.value = path.split('/')[2] || 'dashboard'
 }, { immediate: true })
 
 function onTabChange(name) { router.push(`/admin/${name}`) }
