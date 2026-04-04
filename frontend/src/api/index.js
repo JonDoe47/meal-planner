@@ -45,6 +45,10 @@ export const mealApi = {
   delete: (id) => api.delete(`/mealplans/${id}`)
 }
 
+export const biliApi = {
+  getCover: (url) => api.get('/bilibili/cover', { params: { url } })
+}
+
 export const userApi = {
   list: () => api.get('/users'),
   create: (data) => api.post('/users', data),

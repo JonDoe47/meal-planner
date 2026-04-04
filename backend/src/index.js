@@ -13,6 +13,7 @@ app.use('/api/categories', require('./routes/categories'))
 app.use('/api/dishes', require('./routes/dishes'))
 app.use('/api/mealplans', require('./routes/mealplans'))
 app.use('/api/users', require('./routes/users'))
+app.use('/api/bilibili', require('./routes/bilibili'))
 
 const PORT = process.env.PORT || 3000
 app.listen(PORT, () => {
