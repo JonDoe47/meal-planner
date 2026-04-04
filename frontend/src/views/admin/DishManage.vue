@@ -1,6 +1,11 @@
 <template>
   <div class="dish-manage">
-    <van-nav-bar title="菜品管理" right-text="新增" @click-right="openAdd" />
+    <van-nav-bar title="菜品管理" />
+    <!-- 悬浮新增按钮 -->
+    <div class="fab" @click="openAdd">
+      <van-icon name="plus" size="24" color="white" />
+      <span>新增菜品</span>
+    </div>
 
     <div class="filter-bar">
       <van-tabs v-model:active="activeCategory" color="#ff6b35" shrink @change="loadDishes">
@@ -261,7 +266,8 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.dish-manage { padding-bottom: 20px; }
+.dish-manage { padding-bottom: 80px; }
+.fab { position: fixed; bottom: 70px; right: 16px; background: #ff6b35; color: white; border-radius: 28px; padding: 12px 20px; display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; box-shadow: 0 4px 16px rgba(255,107,53,0.45); z-index: 999; cursor: pointer; }
 .dish-list { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .dish-item { display: flex; align-items: center; background: white; border-radius: 12px; padding: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); gap: 12px; }
 .dish-img-wrap { width: 64px; height: 64px; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
