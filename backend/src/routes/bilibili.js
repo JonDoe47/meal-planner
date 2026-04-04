@@ -50,52 +50,107 @@ router.get('/cover', authMiddleware, async (req, res) => {
 })
 
 router.post('/analyze', authMiddleware, async (req, res) => {
-  const { url } = req.body
+  const { url, categories } = req.body
   if (!url) return res.status(400).json({ message: '请提供B站链接或BV号' })
   const bvid = extractBvid(url)
   if (!bvid) return res.status(400).json({ message: '无法识别BV号，请检查链接格式' })
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(503).json({ message: 'AI识别功能未配置，请在服务器设置 ANTHROPIC_API_KEY' })
+
+  const bibiApiKey = process.env.BIBIGPT_API_KEY
+  if (!bibiApiKey) {
+    return res.status(503).json({ message: 'AI识别功能未配置，请在服务器设置 BIBIGPT_API_KEY' })
   }
 
+  const videoUrl = `https://www.bilibili.com/video/${bvid}`
+  const catHint = Array.isArray(categories) && categories.length > 0
+    ? `，并从以下分类中选择最匹配的一个作为category字段（不匹配则返回空字符串）：${categories.join('、')}`
+    : ''
+
   try {
-    const apiRes = await fetch(`https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`, {
+    const bibiRes = await fetch('https://api.bibigpt.co/api/v1/summarizeWithConfig', {
+      method: 'POST',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://www.bilibili.com'
-      }
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${bibiApiKey}`
+      },
+      body: JSON.stringify({
+        url: videoUrl,
+        promptConfig: {
+          outputLanguage: 'zh',
+          customPrompt: `这是一个烹饪视频。请提取菜品名称、所需食材${catHint}，严格按以下JSON格式返回，不含任何其他文字或markdown：{"dishName":"红烧肉","category":"家常菜","ingredients":["猪五花肉","生姜","大葱","料酒","生抽","老抽","冰糖"]}。菜品名称去掉"做法""教程""怎么做""家常""简单"等修饰词，只保留核心菜名；食材只写名称不写用量，去重。`
+        }
+      }),
+      signal: AbortSignal.timeout(120000)
     })
+
+    if (!bibiRes.ok) {
+      const errText = await bibiRes.text()
+      return res.status(503).json({ message: `BiBiGPT 请求失败(${bibiRes.status}): ${errText}` })
+    }
+
+    const bibiData = await bibiRes.json()
+    const rawSummary = bibiData.summary || ''
+    const rawTitle = bibiData.detail?.title || bvid
+
+    let parsed = { dishName: '', category: '', ingredients: [] }
+    try {
+      const jsonMatch = rawSummary.match(/\{[\s\S]*?\}/)
+      if (jsonMatch) parsed = JSON.parse(jsonMatch[0])
+    } catch { parsed.dishName = rawTitle }
+
+    if (typeof parsed.dishName !== 'string' || !parsed.dishName) parsed.dishName = rawTitle
+    if (!Array.isArray(parsed.ingredients)) parsed.ingredients = []
+    if (typeof parsed.category !== 'string') parsed.category = ''
+
+    res.json({ dishName: parsed.dishName, category: parsed.category, ingredients: parsed.ingredients, rawTitle })
+  } catch (e) {
+    if (e.name === 'TimeoutError') return res.status(503).json({ message: 'BiBiGPT 处理超时（视频较长时需要更多时间），请稍后重试' })
+    res.status(500).json({ message: 'AI识别失败: ' + e.message })
+  }
+})
+
+// 获取B站收藏夹视频列表
+router.get('/favorites', authMiddleware, async (req, res) => {
+  const { url } = req.query
+  if (!url) return res.status(400).json({ message: '请提供收藏夹链接' })
+
+  // 提取 media_id，支持多种格式
+  // https://space.bilibili.com/xxx/favlist?fid=123  -> 123
+  // https://www.bilibili.com/medialist/play/ml123456 -> 123456
+  let mediaId = null
+  const fidMatch = url.match(/[?&]fid=(\d+)/) || url.match(/favlist\/(\d+)/)
+  const mlMatch = url.match(/\/ml(\d+)/)
+  if (fidMatch) mediaId = fidMatch[1]
+  else if (mlMatch) mediaId = mlMatch[1]
+  else {
+    const numMatch = url.match(/(\d{6,})/)
+    if (numMatch) mediaId = numMatch[1]
+  }
+
+  if (!mediaId) return res.status(400).json({ message: '无法识别收藏夹ID，请检查链接格式' })
+
+  try {
+    const apiRes = await fetch(
+      `https://api.bilibili.com/x/v3/fav/resource/list?media_id=${mediaId}&pn=1&ps=40&type=0&platform=web`,
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Referer': 'https://www.bilibili.com'
+        }
+      }
+    )
     const data = await apiRes.json()
     if (data.code !== 0) return res.status(400).json({ message: 'B站接口错误: ' + data.message })
 
-    const title = data.data.title
-    const desc = data.data.desc || ''
+    const videos = (data.data?.medias || []).map(v => ({
+      bvid: v.bvid,
+      title: v.title,
+      cover: v.cover,
+      url: `https://www.bilibili.com/video/${v.bvid}`
+    }))
 
-    const Anthropic = require('@anthropic-ai/sdk')
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
-      system: '你是专门分析烹饪视频信息的助手。根据B站视频标题和简介，提取菜品名称和食材列表。严格按JSON格式返回，不含任何额外文字或markdown代码块。',
-      messages: [{
-        role: 'user',
-        content: `视频标题：${title}\n视频简介：${desc}\n\n请提取：\n1. 菜品名称（去掉"做法""教程""怎么做""家常""简单"等修饰词，保留核心菜名）\n2. 食材名称列表（仅名称不含用量，去重）\n\n返回格式（严格JSON，不含markdown）：\n{"dishName":"红烧肉","ingredients":["猪五花肉","生姜","大葱","料酒","生抽","老抽","冰糖"]}`
-      }]
-    })
-
-    let parsed = { dishName: '', ingredients: [] }
-    try {
-      const raw = message.content[0].text.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
-      parsed = JSON.parse(raw)
-    } catch { parsed.dishName = title }
-
-    if (typeof parsed.dishName !== 'string') parsed.dishName = title
-    if (!Array.isArray(parsed.ingredients)) parsed.ingredients = []
-
-    res.json({ dishName: parsed.dishName, ingredients: parsed.ingredients, rawTitle: title })
+    res.json({ total: data.data?.info?.media_count || videos.length, videos })
   } catch (e) {
-    if (e.status === 401) return res.status(503).json({ message: 'AI识别失败：API Key无效，请检查配置' })
-    res.status(500).json({ message: 'AI识别失败: ' + e.message })
+    res.status(500).json({ message: '获取收藏夹失败: ' + e.message })
   }
 })
 

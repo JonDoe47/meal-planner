@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/auth'
 
 const routes = [
   { path: '/login', component: () => import('../views/Login.vue') },
+  { path: '/register', component: () => import('../views/WechatRegister.vue') },
   {
     path: '/',
     component: () => import('../views/user/Layout.vue'),
@@ -28,7 +29,8 @@ const routes = [
       { path: 'orders', component: () => import('../views/admin/OrderStats.vue') },
       { path: 'users', component: () => import('../views/admin/UserManage.vue') },
       { path: 'dish-requests', component: () => import('../views/admin/DishRequests.vue') },
-      { path: 'ingredients', component: () => import('../views/admin/IngredientList.vue') }
+      { path: 'ingredients', component: () => import('../views/admin/IngredientList.vue') },
+      { path: 'batch-import', component: () => import('../views/admin/BatchImport.vue') }
     ]
   }
 ]

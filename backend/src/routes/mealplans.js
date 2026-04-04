@@ -4,6 +4,31 @@ const { authMiddleware, adminMiddleware } = require('../middleware/auth')
 
 const prisma = new PrismaClient()
 
+// 今日食材 badge 数量（管理员用）
+router.get('/ingredient-badge', adminMiddleware, async (req, res) => {
+  const today = new Date().toISOString().split('T')[0]
+  try {
+    const plans = await prisma.mealPlan.findMany({
+      where: { date: today },
+      include: { items: { include: { dish: true } } }
+    })
+    const ingSet = new Set()
+    for (const plan of plans) {
+      for (const item of plan.items) {
+        if (item.dish.ingredients) {
+          try {
+            const arr = JSON.parse(item.dish.ingredients)
+            arr.forEach(i => ingSet.add(i))
+          } catch {}
+        }
+      }
+    }
+    res.json({ count: ingSet.size, date: today })
+  } catch (e) {
+    res.json({ count: 0 })
+  }
+})
+
 // 获取指定日期范围的点餐（当前用户）
 router.get('/', authMiddleware, async (req, res) => {
   const { startDate, endDate, userId } = req.query

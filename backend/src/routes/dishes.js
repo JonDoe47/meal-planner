@@ -65,4 +65,33 @@ router.delete('/:id', adminMiddleware, async (req, res) => {
   }
 })
 
+// 批量创建菜品
+router.post('/batch', adminMiddleware, async (req, res) => {
+  const { dishes } = req.body
+  if (!Array.isArray(dishes) || dishes.length === 0) {
+    return res.status(400).json({ message: '请提供菜品列表' })
+  }
+  const results = []
+  for (const d of dishes) {
+    try {
+      const dish = await prisma.dish.create({
+        data: {
+          name: d.name,
+          categoryId: Number(d.categoryId),
+          bvid: d.bvid || null,
+          imageUrl: d.imageUrl || null,
+          ingredients: d.ingredients ? JSON.stringify(d.ingredients) : null,
+          description: d.description || null
+        },
+        include: { category: true }
+      })
+      results.push({ success: true, dish })
+    } catch (e) {
+      results.push({ success: false, name: d.name, error: e.message })
+    }
+  }
+  const successCount = results.filter(r => r.success).length
+  res.json({ successCount, failCount: results.length - successCount, results })
+})
+
 module.exports = router

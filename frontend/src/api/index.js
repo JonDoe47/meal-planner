@@ -21,7 +21,10 @@ api.interceptors.response.use(
 )
 
 export const authApi = {
-  login: (data) => api.post('/auth/login', data)
+  login: (data) => api.post('/auth/login', data),
+  qrGenerate: () => api.post('/auth/qr/generate'),
+  qrPoll: (token) => api.get(`/auth/qr/poll/${token}`),
+  qrRegister: (data) => api.post('/auth/qr/register', data)
 }
 
 export const categoryApi = {
@@ -36,24 +39,30 @@ export const dishApi = {
   get: (id) => api.get(`/dishes/${id}`),
   create: (formData) => api.post('/dishes', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   update: (id, formData) => api.put(`/dishes/${id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
-  delete: (id) => api.delete(`/dishes/${id}`)
+  delete: (id) => api.delete(`/dishes/${id}`),
+  batch: (dishes) => api.post('/dishes/batch', { dishes })
 }
 
 export const mealApi = {
   list: (params) => api.get('/mealplans', { params }),
   save: (data) => api.post('/mealplans', data),
-  delete: (id) => api.delete(`/mealplans/${id}`)
+  delete: (id) => api.delete(`/mealplans/${id}`),
+  ingredientBadge: () => api.get('/mealplans/ingredient-badge')
 }
 
 export const biliApi = {
   getCover: (url) => api.get('/bilibili/cover', { params: { url } }),
-  analyze: (url) => api.post('/bilibili/analyze', { url })
+  analyze: (url, categories) => api.post('/bilibili/analyze', { url, categories }),
+  getFavorites: (url) => api.get('/bilibili/favorites', { params: { url } })
 }
 
 export const userApi = {
   list: () => api.get('/users'),
+  pending: () => api.get('/users/pending'),
   create: (data) => api.post('/users', data),
-  resetPassword: (id, data) => api.put(`/users/${id}/reset-password`, data),
+  update: (id, data) => api.put(`/users/${id}`, data),
+  approve: (id) => api.put(`/users/${id}/approve`),
+  reject: (id) => api.put(`/users/${id}/reject`),
   delete: (id) => api.delete(`/users/${id}`)
 }
 

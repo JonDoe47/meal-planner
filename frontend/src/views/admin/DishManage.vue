@@ -35,9 +35,15 @@
     </div>
 
     <!-- FAB -->
-    <div class="fab" @click="openAdd">
-      <van-icon name="plus" size="22" color="white" />
-      <span>新增菜品</span>
+    <div class="fab-group">
+      <div class="fab fab-secondary" @click="$router.push('/admin/batch-import')">
+        <van-icon name="records-o" size="18" color="white" />
+        <span>批量导入</span>
+      </div>
+      <div class="fab" @click="openAdd">
+        <van-icon name="plus" size="22" color="white" />
+        <span>新增菜品</span>
+      </div>
     </div>
 
     <!-- 新增/编辑弹窗 -->
@@ -199,17 +205,27 @@ async function analyzeWithAI() {
   if (!parsedBvid.value) return
   aiLoading.value = true
   try {
-    const res = await biliApi.analyze(form.value.biliUrl)
+    const catNames = categories.value.map(c => c.name)
+    const res = await biliApi.analyze(form.value.biliUrl, catNames)
     if (res.dishName && !form.value.name.trim()) {
       form.value.name = res.dishName
       errors.value.name = false
+    }
+    // 自动填充分类
+    if (res.category && !form.value.categoryId) {
+      const matched = categories.value.find(c => c.name === res.category)
+      if (matched) {
+        form.value.categoryId = matched.id
+        errors.value.categoryId = false
+      }
     }
     if (Array.isArray(res.ingredients) && res.ingredients.length > 0) {
       const existing = new Set(ingredientList.value)
       res.ingredients.forEach(ing => {
         if (ing && !existing.has(ing)) ingredientList.value.push(ing)
       })
-      showToast({ type: 'success', message: `AI识别成功：${res.ingredients.length} 种食材` })
+      const catMsg = res.category ? `，分类：${res.category}` : ''
+      showToast({ type: 'success', message: `AI识别成功：${res.ingredients.length} 种食材${catMsg}` })
     } else {
       showToast({ message: '未识别到食材，可手动添加', duration: 2500 })
     }
@@ -380,15 +396,24 @@ onMounted(async () => {
 .dish-desc { font-size: 11px; color: var(--text2); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dish-actions { display: flex; flex-direction: column; flex-shrink: 0; }
 
-.fab {
+.fab-group {
   position: fixed; bottom: 72px; right: 20px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+  z-index: 100;
+}
+.fab {
   background: linear-gradient(135deg, #2563eb, #3b82f6);
   color: white; border-radius: 28px;
   padding: 13px 20px;
   display: flex; align-items: center; gap: 6px;
   font-size: 15px; font-weight: 600;
   box-shadow: 0 6px 20px rgba(37,99,235,0.4);
-  z-index: 100; cursor: pointer;
+  cursor: pointer;
+}
+.fab-secondary {
+  background: linear-gradient(135deg, #0891b2, #06b6d4);
+  padding: 10px 16px; font-size: 13px;
+  box-shadow: 0 4px 14px rgba(8,145,178,0.4);
 }
 
 .form-wrap { height: 100%; display: flex; flex-direction: column; background: var(--bg); }
