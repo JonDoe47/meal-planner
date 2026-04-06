@@ -1,9 +1,9 @@
-version: '3.8'
-
 services:
-  backend:
-    build: ./backend
+  meal-planner:
+    build: .
     restart: unless-stopped
+    ports:
+      - "8181:3000"
     environment:
       - DATABASE_URL=file:/app/data/meal.db
       - JWT_SECRET=meal-planner-secret-2024-change-me
@@ -12,11 +12,3 @@ services:
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
-
-  frontend:
-    build: ./frontend
-    restart: unless-stopped
-    ports:
-      - "8181:80"
-    depends_on:
-      - backend
