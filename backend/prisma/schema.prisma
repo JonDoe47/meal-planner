@@ -47,8 +47,9 @@ model Dish {
   imageUrl    String?
   bvid        String?
   description String?
-  ingredients String?
-  createdAt   DateTime     @default(now())
+  ingredients  String?
+  cookingSteps String?
+  createdAt    DateTime     @default(now())
   mealItems   MealItem[]
 }
 

@@ -53,7 +53,8 @@ export const mealApi = {
 export const biliApi = {
   getCover: (url) => api.get('/bilibili/cover', { params: { url } }),
   analyze: (url, categories) => api.post('/bilibili/analyze', { url, categories }),
-  getFavorites: (url) => api.get('/bilibili/favorites', { params: { url } })
+  getFavorites: (url) => api.get('/bilibili/favorites', { params: { url } }),
+  getCookingSteps: (bvid) => api.post('/bilibili/cooking-steps', { bvid })
 }
 
 export const userApi = {

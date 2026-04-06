@@ -49,6 +49,25 @@
           <div class="detail-name">{{ currentDish.name }}</div>
           <van-tag type="primary" plain>{{ currentDish.category.name }}</van-tag>
           <div class="detail-desc" v-if="currentDish.description">{{ currentDish.description }}</div>
+
+          <!-- 食材 -->
+          <div class="detail-section" v-if="parsedIngredients(currentDish).length > 0">
+            <div class="section-title">食材</div>
+            <div class="ing-row">
+              <van-tag v-for="ing in parsedIngredients(currentDish)" :key="ing" type="success" plain round size="small" style="margin:3px">{{ ing }}</van-tag>
+            </div>
+          </div>
+
+          <!-- 烹饪步骤 -->
+          <div class="detail-section" v-if="parsedSteps(currentDish).length > 0">
+            <div class="section-title">做法步骤</div>
+            <div class="steps-list">
+              <div v-for="(step, i) in parsedSteps(currentDish)" :key="i" class="step-item">
+                <div class="step-badge">{{ i + 1 }}</div>
+                <div class="step-content">{{ step }}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </van-popup>
@@ -70,6 +89,15 @@ const filteredDishes = computed(() =>
 )
 
 function openDish(dish) { currentDish.value = dish; showDetail.value = true }
+
+function parsedIngredients(dish) {
+  if (!dish?.ingredients) return []
+  try { return JSON.parse(dish.ingredients) } catch { return [] }
+}
+function parsedSteps(dish) {
+  if (!dish?.cookingSteps) return []
+  try { return JSON.parse(dish.cookingSteps) } catch { return [] }
+}
 onMounted(async () => {
   categories.value = await categoryApi.list()
   dishes.value = await dishApi.list()
@@ -114,4 +142,33 @@ onMounted(async () => {
 .detail-body { padding: 16px; }
 .detail-name { font-size: 20px; font-weight: 700; color: var(--text1); margin-bottom: 10px; }
 .detail-desc { font-size: 14px; color: var(--text2); line-height: 1.6; margin-top: 12px; }
+
+.detail-section { margin-top: 16px; }
+.section-title {
+  font-size: 13px; font-weight: 700; color: #64748b;
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+}
+.section-title::before {
+  content: ''; display: inline-block;
+  width: 3px; height: 14px;
+  background: linear-gradient(#fb923c, #f97316);
+  border-radius: 2px;
+}
+.ing-row { display: flex; flex-wrap: wrap; }
+.steps-list { display: flex; flex-direction: column; gap: 10px; }
+.step-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: linear-gradient(135deg, #fff7ed, #fef3c7);
+  border-radius: 12px; padding: 12px 14px;
+  border-left: 3px solid #fb923c;
+}
+.step-badge {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: linear-gradient(135deg, #fb923c, #f97316);
+  color: white; font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.step-content { font-size: 14px; color: #1e293b; line-height: 1.65; flex: 1; }
 </style>

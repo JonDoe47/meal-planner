@@ -140,6 +140,30 @@
             <div class="field-tip">例如：猪肉、土豆、葱、盐，点餐后自动推送给管理员</div>
           </div>
 
+          <!-- 烹饪步骤 -->
+          <div class="field-item">
+            <div class="field-label" style="display:flex;align-items:center;gap:8px">
+              烹饪步骤（可选）
+              <van-button
+                v-if="parsedBvid"
+                size="mini" type="warning" plain
+                :loading="stepsLoading"
+                @click="generateSteps"
+                style="font-size:12px"
+              >AI生成做法</van-button>
+              <span v-else style="font-size:11px;color:#94a3b8;font-weight:400">需先填写B站链接</span>
+            </div>
+            <div v-if="stepList.length > 0" class="steps-preview">
+              <div v-for="(step, i) in stepList" :key="i" class="step-item-edit">
+                <span class="step-num">{{ i + 1 }}</span>
+                <span class="step-text">{{ step }}</span>
+                <van-icon name="cross" size="14" color="#94a3b8" @click="removeStep(i)" style="flex-shrink:0;cursor:pointer" />
+              </div>
+              <van-button size="mini" plain :loading="stepsLoading" @click="generateSteps" style="margin-top:6px;font-size:12px;color:#94a3b8">重新生成</van-button>
+            </div>
+            <div v-else class="field-tip">填写B站链接后，点击「AI生成做法」自动生成分步说明</div>
+          </div>
+
           <!-- 描述 -->
           <div class="field-item">
             <div class="field-label">描述（可选）</div>
@@ -167,7 +191,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { showConfirmDialog, showToast } from 'vant'
-import { dishApi, categoryApi, biliApi } from '../../api'
+import { dishApi, categoryApi, biliApi } from '../../api/index.js'
 
 const dishes = ref([])
 const categories = ref([])
@@ -200,6 +224,24 @@ function removeIngredient(i) {
 }
 
 const aiLoading = ref(false)
+const stepsLoading = ref(false)
+const stepList = ref([])
+
+async function generateSteps() {
+  if (!parsedBvid.value) return
+  stepsLoading.value = true
+  try {
+    const res = await biliApi.getCookingSteps(parsedBvid.value)
+    stepList.value = res.steps
+    showToast({ type: 'success', message: `已生成 ${res.steps.length} 个步骤` })
+  } catch (e) {
+    showToast({ type: 'fail', message: e.message || 'AI生成失败，请稍后重试' })
+  } finally {
+    stepsLoading.value = false
+  }
+}
+
+function removeStep(i) { stepList.value.splice(i, 1) }
 
 async function analyzeWithAI() {
   if (!parsedBvid.value) return
@@ -283,6 +325,7 @@ function openAdd() {
   editing.value = null
   form.value = { name: '', categoryId: null, biliUrl: '', description: '' }
   ingredientList.value = []
+  stepList.value = []
   ingInput.value = ''
   imageFile.value = null; biliImageUrl.value = ''; previewImage.value = ''
   errors.value = { name: false, categoryId: false }
@@ -298,6 +341,7 @@ function openEdit(dish) {
     description: dish.description || ''
   }
   try { ingredientList.value = dish.ingredients ? JSON.parse(dish.ingredients) : [] } catch { ingredientList.value = [] }
+  try { stepList.value = dish.cookingSteps ? JSON.parse(dish.cookingSteps) : [] } catch { stepList.value = [] }
   ingInput.value = ''
   imageFile.value = null
   biliImageUrl.value = dish.imageUrl || ''
@@ -333,6 +377,7 @@ async function saveDish() {
     fd.append('bvid', parsedBvid.value || '')
     fd.append('description', form.value.description || '')
     fd.append('ingredients', ingredientList.value.length ? JSON.stringify(ingredientList.value) : '')
+    fd.append('cookingSteps', stepList.value.length ? JSON.stringify(stepList.value) : '')
     if (imageFile.value) {
       fd.append('image', imageFile.value)
     } else if (biliImageUrl.value) {
@@ -464,4 +509,18 @@ onMounted(async () => {
 .ing-input-row { display: flex; align-items: center; }
 .ing-input { flex: 1; }
 .field-tip { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+
+.steps-preview { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+.step-item-edit {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: #f0fdf4; border-radius: 8px; padding: 8px 10px;
+}
+.step-num {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #16a34a; color: white;
+  font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.step-text { flex: 1; font-size: 13px; color: #1e293b; line-height: 1.5; }
 </style>

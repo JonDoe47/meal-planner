@@ -30,11 +30,11 @@ router.get('/:id', authMiddleware, async (req, res) => {
 })
 
 router.post('/', adminMiddleware, upload.single('image'), async (req, res) => {
-  const { name, categoryId, bvid, description, existingImageUrl, ingredients } = req.body
+  const { name, categoryId, bvid, description, existingImageUrl, ingredients, cookingSteps } = req.body
   const imageUrl = req.file ? `/uploads/${req.file.filename}` : (existingImageUrl || null)
   try {
     const dish = await prisma.dish.create({
-      data: { name, categoryId: Number(categoryId), bvid: bvid || null, description: description || null, imageUrl, ingredients: ingredients || null },
+      data: { name, categoryId: Number(categoryId), bvid: bvid || null, description: description || null, imageUrl, ingredients: ingredients || null, cookingSteps: cookingSteps || null },
       include: { category: true }
     })
     res.json(dish)
@@ -44,8 +44,8 @@ router.post('/', adminMiddleware, upload.single('image'), async (req, res) => {
 })
 
 router.put('/:id', adminMiddleware, upload.single('image'), async (req, res) => {
-  const { name, categoryId, bvid, description, existingImageUrl, ingredients } = req.body
-  const data = { name, categoryId: Number(categoryId), bvid: bvid || null, description: description || null, ingredients: ingredients || null }
+  const { name, categoryId, bvid, description, existingImageUrl, ingredients, cookingSteps } = req.body
+  const data = { name, categoryId: Number(categoryId), bvid: bvid || null, description: description || null, ingredients: ingredients || null, cookingSteps: cookingSteps || null }
   if (req.file) data.imageUrl = `/uploads/${req.file.filename}`
   else if (existingImageUrl) data.imageUrl = existingImageUrl
   try {

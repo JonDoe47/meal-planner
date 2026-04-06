@@ -154,4 +154,53 @@ router.get('/favorites', authMiddleware, async (req, res) => {
   }
 })
 
+// AI生成分步做法
+router.post('/cooking-steps', authMiddleware, async (req, res) => {
+  const { bvid } = req.body
+  if (!bvid) return res.status(400).json({ message: '请提供BV号' })
+
+  const bibiApiKey = process.env.BIBIGPT_API_KEY
+  if (!bibiApiKey) return res.status(503).json({ message: 'AI功能未配置，请设置 BIBIGPT_API_KEY' })
+
+  const videoUrl = `https://www.bilibili.com/video/${bvid}`
+  try {
+    const bibiRes = await fetch('https://api.bibigpt.co/api/v1/summarizeWithConfig', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${bibiApiKey}` },
+      body: JSON.stringify({
+        url: videoUrl,
+        promptConfig: {
+          outputLanguage: 'zh',
+          customPrompt: `这是一个烹饪视频。请根据视频内容提取分步骤做法，严格按以下JSON格式返回，不含任何其他文字或markdown：{"steps":["步骤1：具体操作","步骤2：具体操作"]}。要求：步骤数量4-7步，每步简洁实用，以"步骤N："开头，50字以内。`
+        }
+      }),
+      signal: AbortSignal.timeout(120000)
+    })
+
+    if (!bibiRes.ok) {
+      const errText = await bibiRes.text()
+      return res.status(503).json({ message: `BiBiGPT 请求失败(${bibiRes.status}): ${errText}` })
+    }
+
+    const bibiData = await bibiRes.json()
+    const rawSummary = bibiData.summary || ''
+
+    let steps = []
+    try {
+      const jsonMatch = rawSummary.match(/\{[\s\S]*?\}/)
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0])
+        if (Array.isArray(parsed.steps)) steps = parsed.steps
+      }
+    } catch { /* ignore */ }
+
+    if (steps.length === 0) return res.status(500).json({ message: 'AI未能生成有效步骤，请重试' })
+
+    res.json({ steps })
+  } catch (e) {
+    if (e.name === 'TimeoutError') return res.status(503).json({ message: 'AI处理超时，请稍后重试' })
+    res.status(500).json({ message: 'AI生成失败: ' + e.message })
+  }
+})
+
 module.exports = router
