@@ -2,7 +2,8 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
+# 只安装生产依赖（排除 canvas 等本地开发工具）
+RUN npm install --omit=dev
 COPY frontend/ ./
 RUN npm run build
 
