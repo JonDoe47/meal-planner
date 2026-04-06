@@ -6,7 +6,7 @@ services:
       - "8181:3000"
     environment:
       - DATABASE_URL=file:/app/data/meal.db
-      - JWT_SECRET=meal-planner-secret-2024-change-me
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=3000
       - BIBIGPT_API_KEY=${BIBIGPT_API_KEY}
     volumes:

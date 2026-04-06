@@ -18,8 +18,8 @@
               <van-field
                 v-model="form.username"
                 name="username"
-                placeholder="请输入用户名"
-                :rules="[{ required: true, message: '请填写用户名' }]"
+                placeholder="请输入用户名（4-20位字母/数字/下划线）"
+                :rules="usernameRules"
                 class="custom-field"
               >
                 <template #left-icon><van-icon name="contact" color="#2563eb" /></template>
@@ -31,8 +31,8 @@
                 v-model="form.password"
                 type="password"
                 name="password"
-                placeholder="请输入密码"
-                :rules="[{ required: true, message: '请填写密码' }]"
+                placeholder="请输入密码（8-32位，含字母和数字）"
+                :rules="passwordRules"
                 class="custom-field"
               >
                 <template #left-icon><van-icon name="lock" color="#2563eb" /></template>
@@ -96,6 +96,22 @@ const auth = useAuthStore()
 const loading = ref(false)
 const form = ref({ username: '', password: '' })
 const activeTab = ref('password')
+
+// 用户名校验规则：4-20位，字母/数字/下划线，不能以数字开头
+const usernameRules = [
+  { required: true, message: '请填写用户名' },
+  { validator: v => v.length >= 4, message: '用户名至少4个字符' },
+  { validator: v => v.length <= 20, message: '用户名最多20个字符' },
+  { validator: v => /^[a-zA-Z_][a-zA-Z0-9_]{3,19}$/.test(v), message: '用户名只能含字母、数字、下划线，且不能以数字开头' }
+]
+
+// 密码校验规则：8-32位，必须含字母和数字
+const passwordRules = [
+  { required: true, message: '请填写密码' },
+  { validator: v => v.length >= 8, message: '密码至少8个字符' },
+  { validator: v => v.length <= 32, message: '密码最多32个字符' },
+  { validator: v => /(?=.*[A-Za-z])(?=.*\d)/.test(v), message: '密码必须同时包含字母和数字' }
+]
 
 // QR 相关
 const qrCanvas = ref(null)

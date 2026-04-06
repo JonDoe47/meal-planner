@@ -1,11 +1,28 @@
+// 必须在所有其他模块引入之前加载环境变量
+require('dotenv').config({ path: require('path').join(__dirname, '../../.env') })
+
 const express = require('express')
 const cors = require('cors')
 const path = require('path')
 
 const app = express()
 
-app.use(cors())
-app.use(express.json())
+// CORS 配置：优先从环境变量读取允许的来源，开发环境允许所有
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+  : null
+
+app.use(cors({
+  origin: allowedOrigins
+    ? (origin, cb) => {
+        if (!origin || allowedOrigins.includes(origin)) cb(null, true)
+        else cb(new Error('Not allowed by CORS'))
+      }
+    : true, // 未配置时开发模式允许所有
+  credentials: true
+}))
+
+app.use(express.json({ limit: '1mb' }))
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
 
 app.use('/api/auth', require('./routes/auth'))

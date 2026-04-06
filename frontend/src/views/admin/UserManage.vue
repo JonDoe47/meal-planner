@@ -44,20 +44,38 @@
       </div>
     </div>
 
-    <van-dialog v-model:show="showAddForm" title="新增成员" show-cancel-button @confirm="addUser" confirm-button-color="#2563eb">
+    <van-dialog v-model:show="showAddForm" title="新增成员" show-cancel-button @confirm="addUser" confirm-button-color="#2563eb" :before-close="beforeAddClose">
       <div style="padding: 16px">
-        <van-field v-model="addForm.name" label="姓名" placeholder="显示名称" />
-        <van-field v-model="addForm.username" label="账号" placeholder="登录账号" />
-        <van-field v-model="addForm.password" type="password" label="密码" placeholder="初始密码" />
-        <van-field label="角色" is-link readonly :value="addForm.role === 'ADMIN' ? '管理员' : '普通成员'" @click="showRolePicker = true" />
+        <van-field
+          v-model="addForm.name" label="姓名" placeholder="显示名称（1-20字符）"
+          :error-message="addErrors.name"
+        />
+        <van-field
+          v-model="addForm.username" label="账号" placeholder="4-20位字母/数字/下划线"
+          :error-message="addErrors.username"
+        />
+        <van-field
+          v-model="addForm.password" type="password" label="密码" placeholder="8-32位，须含字母和数字"
+          :error-message="addErrors.password"
+        />
+        <van-field label="角色" is-link readonly :model-value="addForm.role === 'ADMIN' ? '管理员' : '普通成员'" @click="showRolePicker = true" />
       </div>
     </van-dialog>
 
-    <van-dialog v-model:show="showEditForm" title="编辑成员信息" show-cancel-button @confirm="saveEdit" confirm-button-color="#2563eb">
+    <van-dialog v-model:show="showEditForm" title="编辑成员信息" show-cancel-button @confirm="saveEdit" confirm-button-color="#2563eb" :before-close="beforeEditClose">
       <div style="padding: 16px">
-        <van-field v-model="editForm.name" label="姓名" placeholder="显示名称" />
-        <van-field v-model="editForm.username" label="登录账号" placeholder="登录账号" />
-        <van-field v-model="editForm.password" type="password" label="新密码" placeholder="留空则不修改密码" />
+        <van-field
+          v-model="editForm.name" label="姓名" placeholder="显示名称（1-20字符）"
+          :error-message="editErrors.name"
+        />
+        <van-field
+          v-model="editForm.username" label="登录账号" placeholder="4-20位字母/数字/下划线"
+          :error-message="editErrors.username"
+        />
+        <van-field
+          v-model="editForm.password" type="password" label="新密码" placeholder="8-32位，须含字母和数字（留空不修改）"
+          :error-message="editErrors.password"
+        />
       </div>
     </van-dialog>
 
@@ -87,13 +105,69 @@ const showRolePicker = ref(false)
 const editingUserId = ref(null)
 const addForm = ref({ name: '', username: '', password: '', role: 'USER' })
 const editForm = ref({ name: '', username: '', password: '' })
+const addErrors = ref({ name: '', username: '', password: '' })
+const editErrors = ref({ name: '', username: '', password: '' })
+
+// 校验规则
+function validateUsername(v) {
+  if (!v || !v.trim()) return '请填写账号'
+  if (v.trim().length < 4) return '账号至少4个字符'
+  if (v.trim().length > 20) return '账号最多20个字符'
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]{3,19}$/.test(v.trim())) return '账号只能含字母、数字、下划线，且不能以数字开头'
+  return ''
+}
+function validatePassword(v, required = true) {
+  if (!v || v.length === 0) return required ? '请填写密码' : ''
+  if (v.length < 8) return '密码至少8个字符'
+  if (v.length > 32) return '密码最多32个字符'
+  if (!/(?=.*[A-Za-z])(?=.*\d)/.test(v)) return '密码必须同时包含字母和数字'
+  return ''
+}
+function validateName(v) {
+  if (!v || !v.trim()) return '请填写姓名'
+  if (v.trim().length > 20) return '姓名最多20个字符'
+  return ''
+}
+
+function beforeAddClose(action) {
+  if (action === 'confirm') {
+    addErrors.value.name = validateName(addForm.value.name)
+    addErrors.value.username = validateUsername(addForm.value.username)
+    addErrors.value.password = validatePassword(addForm.value.password, true)
+    if (addErrors.value.name || addErrors.value.username || addErrors.value.password) {
+      return false // 阻止关闭，继续显示对话框
+    }
+  }
+  return true
+}
+
+function beforeEditClose(action) {
+  if (action === 'confirm') {
+    editErrors.value.name = validateName(editForm.value.name)
+    editErrors.value.username = validateUsername(editForm.value.username)
+    editErrors.value.password = validatePassword(editForm.value.password, false)
+    if (editErrors.value.name || editErrors.value.username || editErrors.value.password) {
+      return false
+    }
+  }
+  return true
+}
 
 function formatTime(t) {
   return new Date(t).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function openAdd() { addForm.value = { name: '', username: '', password: '', role: 'USER' }; showAddForm.value = true }
-function openEdit(user) { editingUserId.value = user.id; editForm.value = { name: user.name, username: user.username, password: '' }; showEditForm.value = true }
+function openAdd() {
+  addForm.value = { name: '', username: '', password: '', role: 'USER' }
+  addErrors.value = { name: '', username: '', password: '' }
+  showAddForm.value = true
+}
+function openEdit(user) {
+  editingUserId.value = user.id
+  editForm.value = { name: user.name, username: user.username, password: '' }
+  editErrors.value = { name: '', username: '', password: '' }
+  showEditForm.value = true
+}
 
 async function saveEdit() {
   try {
