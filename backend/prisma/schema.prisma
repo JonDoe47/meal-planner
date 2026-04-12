@@ -19,6 +19,7 @@ model User {
   mealPlans    MealPlan[]
   dishRequests DishRequest[]
   qrSessions   QrSession[]
+  ratings      DishRating[]
 }
 
 model QrSession {
@@ -40,17 +41,48 @@ model Category {
 }
 
 model Dish {
-  id          Int          @id @default(autoincrement())
+  id          Int           @id @default(autoincrement())
   name        String
   categoryId  Int
-  category    Category     @relation(fields: [categoryId], references: [id])
+  category    Category      @relation(fields: [categoryId], references: [id])
   imageUrl    String?
   bvid        String?
   description String?
   ingredients  String?
   cookingSteps String?
-  createdAt    DateTime     @default(now())
+  videoUrl    String?
+  createdAt   DateTime      @default(now())
   mealItems   MealItem[]
+  ratings     DishRating[]
+  // 关联菜品：作为主菜时的绑定（如火锅→锅底、蘸料）
+  bindings    DishBinding[] @relation("MainDishBindings")
+  // 被其他菜绑定时（如锅底被火锅绑定）
+  boundBy     DishBinding[] @relation("BoundDishBindings")
+}
+
+// 菜品关联：主菜与子菜品的绑定关系（如火锅-锅底、火锅-蘸料）
+model DishBinding {
+  id          Int       @id @default(autoincrement())
+  dishId      Int       // 主菜 ID（如：火锅）
+  dish        Dish      @relation("MainDishBindings", fields: [dishId], references: [id], onDelete: Cascade)
+  boundDishId Int       // 关联的子菜品 ID（如：麻辣锅底）
+  boundDish   Dish      @relation("BoundDishBindings", fields: [boundDishId], references: [id], onDelete: Cascade)
+  type        String    // 关联类型：SAUCE(蘸料)、BASE(锅底)、SIDE(配菜)、MAIN(主食) 等，管理员可自定义文字
+  sort        Int       @default(0) // 排序权重
+  @@unique([dishId, boundDishId])
+}
+
+model DishRating {
+  id        Int      @id @default(autoincrement())
+  dishId    Int
+  dish      Dish     @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score     Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([dishId, userId])
 }
 
 model DishRequest {

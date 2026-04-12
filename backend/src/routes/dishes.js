@@ -12,15 +12,30 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
 
 const storage = multer.diskStorage({
   destination: uploadDir,
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.fieldname + path.extname(file.originalname))
 })
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } })
+const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 } })
+const uploadFields = upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'video', maxCount: 1 }
+])
 
 router.get('/', authMiddleware, async (req, res) => {
   const { categoryId } = req.query
   const where = categoryId ? { categoryId: Number(categoryId) } : {}
-  const dishes = await prisma.dish.findMany({ where, include: { category: true }, orderBy: { createdAt: 'desc' } })
-  res.json(dishes)
+  const dishes = await prisma.dish.findMany({
+    where,
+    include: { category: true, ratings: { select: { score: true } } },
+    orderBy: { createdAt: 'desc' }
+  })
+  const result = dishes.map(d => {
+    const avgRating = d.ratings.length
+      ? Math.round((d.ratings.reduce((s, r) => s + r.score, 0) / d.ratings.length) * 10) / 10
+      : null
+    const { ratings, ...rest } = d
+    return { ...rest, avgRating, ratingCount: ratings.length }
+  })
+  res.json(result)
 })
 
 router.get('/:id', authMiddleware, async (req, res) => {
@@ -29,12 +44,13 @@ router.get('/:id', authMiddleware, async (req, res) => {
   res.json(dish)
 })
 
-router.post('/', adminMiddleware, upload.single('image'), async (req, res) => {
-  const { name, categoryId, bvid, description, existingImageUrl, ingredients, cookingSteps } = req.body
-  const imageUrl = req.file ? `/uploads/${req.file.filename}` : (existingImageUrl || null)
+router.post('/', adminMiddleware, uploadFields, async (req, res) => {
+  const { name, categoryId, bvid, description, existingImageUrl, existingVideoUrl, ingredients, cookingSteps } = req.body
+  const imageUrl = req.files?.['image']?.[0] ? `/uploads/${req.files['image'][0].filename}` : (existingImageUrl || null)
+  const videoUrl = req.files?.['video']?.[0] ? `/uploads/${req.files['video'][0].filename}` : (existingVideoUrl || null)
   try {
     const dish = await prisma.dish.create({
-      data: { name, categoryId: Number(categoryId), bvid: bvid || null, description: description || null, imageUrl, ingredients: ingredients || null, cookingSteps: cookingSteps || null },
+      data: { name, categoryId: Number(categoryId), bvid: bvid || null, description: description || null, imageUrl, videoUrl, ingredients: ingredients || null, cookingSteps: cookingSteps || null },
       include: { category: true }
     })
     res.json(dish)
@@ -43,11 +59,14 @@ router.post('/', adminMiddleware, upload.single('image'), async (req, res) => {
   }
 })
 
-router.put('/:id', adminMiddleware, upload.single('image'), async (req, res) => {
-  const { name, categoryId, bvid, description, existingImageUrl, ingredients, cookingSteps } = req.body
+router.put('/:id', adminMiddleware, uploadFields, async (req, res) => {
+  const { name, categoryId, bvid, description, existingImageUrl, existingVideoUrl, ingredients, cookingSteps } = req.body
   const data = { name, categoryId: Number(categoryId), bvid: bvid || null, description: description || null, ingredients: ingredients || null, cookingSteps: cookingSteps || null }
-  if (req.file) data.imageUrl = `/uploads/${req.file.filename}`
+  if (req.files?.['image']?.[0]) data.imageUrl = `/uploads/${req.files['image'][0].filename}`
   else if (existingImageUrl) data.imageUrl = existingImageUrl
+  if (req.files?.['video']?.[0]) data.videoUrl = `/uploads/${req.files['video'][0].filename}`
+  else if (existingVideoUrl) data.videoUrl = existingVideoUrl
+  else data.videoUrl = null
   try {
     const dish = await prisma.dish.update({ where: { id: Number(req.params.id) }, data, include: { category: true } })
     res.json(dish)
@@ -81,7 +100,8 @@ router.post('/batch', adminMiddleware, async (req, res) => {
           bvid: d.bvid || null,
           imageUrl: d.imageUrl || null,
           ingredients: d.ingredients ? JSON.stringify(d.ingredients) : null,
-          description: d.description || null
+          description: d.description || null,
+          cookingSteps: d.cookingSteps ? JSON.stringify(d.cookingSteps) : null
         },
         include: { category: true }
       })

@@ -33,6 +33,9 @@ app.use('/api/users', require('./routes/users'))
 app.use('/api/bilibili', require('./routes/bilibili'))
 app.use('/api/dish-requests', require('./routes/dishRequests'))
 app.use('/api/ingredients', require('./routes/ingredients'))
+app.use('/api/ratings', require('./routes/ratings'))
+app.use('/api/stats', require('./routes/stats'))
+app.use('/api/dish-bindings', require('./routes/dishBindings'))
 
 // 托管前端静态文件
 app.use(express.static(path.join(__dirname, '../public')))

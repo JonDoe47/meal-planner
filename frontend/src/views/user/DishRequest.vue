@@ -7,7 +7,7 @@
 
     <!-- 提交表单 -->
     <div class="form-card">
-      <div class="form-card-title">提交新需求</div>
+      <div class="form-card-title">💡 提交新需求</div>
       <div class="field-item">
         <div class="field-label">想吃的菜 <span class="req">*</span></div>
         <van-field v-model="form.dishName" placeholder="例如：红烧肉、土豆炖鸡..." class="f-input" :class="{ error: nameError }" />
@@ -17,17 +17,15 @@
         <div class="field-label">补充说明（可选）</div>
         <van-field v-model="form.description" type="textarea" placeholder="口味偏好、做法要求..." rows="3" class="f-input" />
       </div>
-      <van-button type="primary" round block :loading="submitting" @click="submit" style="height:46px;font-size:15px;font-weight:600;">提交需求</van-button>
+      <van-button type="primary" round block :loading="submitting" @click="submit" class="submit-btn">提交需求</van-button>
     </div>
 
     <!-- 我的需求列表 -->
-    <div class="my-list">
-      <div class="section-title">我的求菜记录</div>
-      <van-empty v-if="myList.length === 0" description="还没有提交过需求" />
-      <div v-for="req in myList" :key="req.id" class="req-card">
+    <transition-group name="req-anim" tag="div" class="my-list">
+      <div v-for="req in myList" :key="req.id" class="req-card" :class="'status-' + req.status.toLowerCase()">
         <div class="req-top">
           <div class="req-name">{{ req.dishName }}</div>
-          <div class="req-status" :class="req.status.toLowerCase()">{{ statusLabel(req.status) }}</div>
+          <div class="req-status">{{ statusLabel(req.status) }}</div>
         </div>
         <div class="req-desc" v-if="req.description">{{ req.description }}</div>
         <div class="req-note" v-if="req.adminNote">
@@ -36,7 +34,9 @@
         </div>
         <div class="req-time">{{ formatTime(req.createdAt) }}</div>
       </div>
-    </div>
+    </transition-group>
+
+    <van-empty v-if="myList.length === 0 && !submitting" description="还没有提交过需求" />
   </div>
 </template>
 
@@ -64,56 +64,65 @@ async function submit() {
   try {
     await dishRequestApi.create({ dishName: form.value.dishName.trim(), description: form.value.description })
     showToast({ type: 'success', message: '需求已提交！等待管理员处理' })
-    form.value = { dishName: '', description: '' }
-    await load()
-  } catch (e) {
-    showToast({ type: 'fail', message: e.message || '提交失败' })
-  } finally { submitting.value = false }
+    form.value = { dishName: '', description: '' }; await load()
+  } catch (e) { showToast({ type: 'fail', message: e.message || '提交失败' }) }
+  finally { submitting.value = false }
 }
 
-async function load() {
-  myList.value = await dishRequestApi.list()
-}
-
+async function load() { myList.value = await dishRequestApi.list() }
 onMounted(load)
 </script>
 
 <style scoped>
 .request-page { min-height: 100vh; background: var(--bg); padding-bottom: 80px; }
 .page-header {
-  background: linear-gradient(135deg, #1d4ed8, #3b82f6);
-  padding: 16px 20px;
-  color: white;
+  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+  padding: var(--space-lg); color: white;
 }
-.header-title { font-size: 18px; font-weight: 700; }
-.header-sub { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+.header-title { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+.header-sub { font-size: 12px; opacity: 0.85; margin-top: 2px; font-weight: 500; }
 
-.form-card { margin: 12px; background: white; border-radius: 16px; padding: 16px; box-shadow: var(--shadow-md); }
-.form-card-title { font-size: 15px; font-weight: 700; color: var(--text1); margin-bottom: 16px; }
-.field-item { margin-bottom: 14px; }
-.field-label { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px; }
-.req { color: #ef4444; }
-.err-msg { font-size: 12px; color: #ef4444; margin-top: 4px; }
-.f-input { background: var(--bg); border-radius: 10px; border: 1.5px solid var(--border); }
+.form-card { margin: var(--space-md); background: white; border-radius: var(--radius-lg); padding: var(--space-lg); box-shadow: var(--shadow-md); border-top: 4px solid var(--warm-amber); }
+.form-card-title { font-size: 15px; font-weight: 700; color: var(--text1); margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
+.field-item { margin-bottom: 16px; }
+.field-label { font-size: 13px; font-weight: 700; color: #475569; margin-bottom: 8px; display: flex; gap: 4px; }
+.req { color: #ef4444; font-weight: 800; }
+.err-msg { font-size: 12px; color: #ef4444; margin-top: 6px; font-weight: 500; }
+
+.f-input { background: var(--bg); border-radius: var(--radius-sm); border: 1.5px solid var(--border); transition: all 0.2s; }
+.f-input:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); background: white; }
 .f-input.error { border-color: #ef4444; }
 
-.my-list { padding: 0 12px; }
+.submit-btn { height: 48px; font-size: 15px; font-weight: 800; background: linear-gradient(135deg, #2563eb, #3b82f6); border: none; box-shadow: 0 4px 14px rgba(37,99,235,0.32); transition: all 0.25s; }
+.submit-btn:active { transform: scale(0.98); }
+
+.my-list { padding: 0 var(--space-md); position: relative; z-index: 0; }
 .section-title { font-size: 15px; font-weight: 700; color: var(--text1); margin-bottom: 10px; }
 
+.req-anim-move { transition: transform 0.35s ease; }
+.req-anim-enter-active { transition: all 0.25s ease-out; }
+.req-anim-enter-from { opacity: 0; transform: translateY(10px); }
+
 .req-card {
-  background: white; border-radius: 14px; padding: 14px;
-  box-shadow: var(--shadow); margin-bottom: 10px;
-  display: flex; flex-direction: column; gap: 6px;
+  background: white; border-radius: var(--radius-md); padding: 14px;
+  box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px;
+  border-left: 3px solid transparent; transition: all 0.2s;
 }
+.req-card:hover { box-shadow: var(--shadow-md); transform: translateX(4px); }
+.req-card.status-pending { border-left-color: #f59e0b; background: linear-gradient(135deg, #fffbeb, #fef3c7); }
+.req-card.status-approved { border-left-color: #22c55e; background: linear-gradient(135deg, #f0fdf4, #dcfce7); }
+.req-card.status-rejected { border-left-color: #ef4444; background: linear-gradient(135deg, #fef2f2, #fee2e2); }
 .req-top { display: flex; justify-content: space-between; align-items: center; }
-.req-name { font-size: 15px; font-weight: 700; color: var(--text1); }
-.req-desc { font-size: 13px; color: var(--text2); }
+.req-name { font-size: 16px; font-weight: 800; color: var(--text1); letter-spacing: -0.2px; }
 .req-status {
-  font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; padding: 3px 12px; border-radius: var(--radius-full);
+  white-space: nowrap; flex-shrink: 0; letter-spacing: 0.5px;
 }
-.req-status.pending { background: #fef3c7; color: #d97706; }
-.req-status.approved { background: #dcfce7; color: #16a34a; }
-.req-status.rejected { background: #fee2e2; color: #ef4444; }
-.req-note { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #2563eb; }
-.req-time { font-size: 11px; color: #94a3b8; }
+.req-desc { font-size: 13px; color: var(--text2); line-height: 1.55; word-break: break-word; }
+.req-note {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--primary);
+  background: #eff6ff; border-radius: var(--radius-sm); padding: 7px 10px;
+  font-weight: 500;
+}
+.req-time { font-size: 11px; color: var(--text3); font-weight: 500; }
 </style>

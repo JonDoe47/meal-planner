@@ -97,7 +97,6 @@ const loading = ref(false)
 const form = ref({ username: '', password: '' })
 const activeTab = ref('password')
 
-// 用户名校验规则：4-20位，字母/数字/下划线，不能以数字开头
 const usernameRules = [
   { required: true, message: '请填写用户名' },
   { validator: v => v.length >= 4, message: '用户名至少4个字符' },
@@ -105,7 +104,6 @@ const usernameRules = [
   { validator: v => /^[a-zA-Z_][a-zA-Z0-9_]{3,19}$/.test(v), message: '用户名只能含字母、数字、下划线，且不能以数字开头' }
 ]
 
-// 密码校验规则：8-32位，必须含字母和数字
 const passwordRules = [
   { required: true, message: '请填写密码' },
   { validator: v => v.length >= 8, message: '密码至少8个字符' },
@@ -152,15 +150,13 @@ async function generateQr() {
     qrExpiresAt.value = expiresAt
     qrStatus.value = 'WAITING'
 
-    await new Promise(r => setTimeout(r, 50)) // 等待 canvas 渲染
+    await new Promise(r => setTimeout(r, 50))
     const url = `${window.location.origin}/register?t=${token}`
     if (qrCanvas.value) {
       await QRCode.toCanvas(qrCanvas.value, url, { width: 200, margin: 2 })
     }
 
-    // 开始轮询
     pollTimer = setInterval(pollQrStatus, 2000)
-    // 倒计时刷新
     expireTimer = setInterval(() => {
       if (qrExpiresAt.value && new Date(qrExpiresAt.value) <= Date.now()) {
         qrStatus.value = 'EXPIRED'
@@ -180,7 +176,6 @@ async function pollQrStatus() {
     qrStatus.value = status
     if (status === 'APPROVED' && jwt) {
       clearTimers()
-      // 需要获取用户信息，先解析 JWT payload
       const payload = JSON.parse(atob(jwt.split('.')[1]))
       const user = { id: payload.id, username: payload.username, name: payload.name, role: payload.role }
       auth.login(jwt, user)
@@ -208,7 +203,7 @@ onUnmounted(clearTimers)
 <style scoped>
 .login-page {
   min-height: 100vh;
-  background: linear-gradient(160deg, #1d4ed8 0%, #3b82f6 50%, #60a5fa 100%);
+  background: linear-gradient(160deg, #1e40af 0%, #2563eb 35%, #3b82f6 65%, #60a5fa 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -220,42 +215,96 @@ onUnmounted(clearTimers)
 .circle {
   position: absolute;
   border-radius: 50%;
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.07);
+  animation: float 8s ease-in-out infinite;
 }
-.c1 { width: 300px; height: 300px; top: -80px; right: -60px; }
-.c2 { width: 200px; height: 200px; bottom: 60px; left: -60px; }
-.c3 { width: 150px; height: 150px; bottom: 200px; right: 40px; }
+.c1 { width: 340px; height: 340px; top: -100px; right: -80px; animation-delay: 0s; }
+.c2 { width: 220px; height: 220px; bottom: 40px; left: -80px; animation-delay: -3s; }
+.c3 { width: 170px; height: 170px; bottom: 220px; right: 30px; animation-delay: -5s; }
+@keyframes float {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.07; }
+  50% { transform: translateY(-20px) scale(1.05); opacity: 0.12; }
+}
 .login-card {
   background: white;
-  border-radius: 24px;
-  padding: 40px 28px 32px;
+  border-radius: var(--radius-xl);
+  padding: 36px 28px 32px;
   width: 100%;
   max-width: 400px;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.16);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.18), 0 0 0 1px rgba(255,255,255,0.1) inset;
   position: relative;
   z-index: 1;
+  animation: cardIn 0.5s ease-out both;
 }
-.login-logo { text-align: center; font-size: 56px; margin-bottom: 12px; }
-.login-title { text-align: center; font-size: 26px; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
-.login-sub { text-align: center; color: #94a3b8; font-size: 14px; margin-bottom: 16px; }
-.login-tabs { margin-bottom: 8px; }
-.input-group { margin-bottom: 16px; margin-top: 16px; }
-.input-label { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px; padding-left: 2px; }
-.login-btn { height: 48px; font-size: 16px; font-weight: 600; margin-top: 24px; background: linear-gradient(90deg, #2563eb, #3b82f6); border: none; }
-:deep(.custom-field) {
-  border: 1.5px solid #e2e8f0;
-  border-radius: 12px;
-  overflow: hidden;
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
-:deep(.custom-field .van-field__control) { padding: 4px 0; }
+.login-logo { text-align: center; font-size: 52px; margin-bottom: 10px; animation: logoBounce 0.6s ease-out 0.2s both; }
+@keyframes logoBounce {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.login-title { text-align: center; font-size: var(--text-xxl); font-weight: 800; color: var(--text1); margin-bottom: 4px; letter-spacing: -0.3px; }
+.login-sub { text-align: center; color: var(--text2); font-size: var(--text-sm); margin-bottom: 16px; }
+.login-tabs { margin-bottom: 4px; }
+.input-group { margin-bottom: 14px; margin-top: 14px; }
+.input-label { font-size: var(--text-sm); font-weight: 600; color: #475569; margin-bottom: 6px; padding-left: 2px; display: block; }
+.login-btn {
+  height: 48px; font-size: 16px; font-weight: 700;
+  margin-top: 22px;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: none; box-shadow: 0 4px 14px rgba(37,99,235,0.35);
+  transition: all 0.25s;
+}
+.login-btn:active { transform: scale(0.98); box-shadow: 0 2px 8px rgba(37,99,235,0.3); }
 
-.qr-section { padding: 16px 0; display: flex; justify-content: center; }
-.qr-box { text-align: center; }
-.qr-canvas { border-radius: 12px; border: 1px solid #e2e8f0; display: block; margin: 0 auto; }
-.qr-loading { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #64748b; padding: 40px 0; }
-.qr-hint { color: #64748b; font-size: 13px; margin-top: 10px; line-height: 1.6; }
-.qr-expire { color: #94a3b8; font-size: 12px; margin-top: 6px; }
-.qr-status-box { text-align: center; padding: 24px 0; }
-.qr-status-text { font-size: 18px; font-weight: 600; color: #1e293b; margin: 12px 0 4px; }
-.qr-status-sub { color: #64748b; font-size: 13px; }
+::deep(.custom-field) {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: all 0.2s ease;
+  background: var(--bg);
+}
+::deep(.custom-field:focus-within) {
+  border-color: var(--primary);
+  background: white;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.10);
+}
+::deep(.custom-field .van-field__control) { padding: 4px 0; }
+
+/* 二维码区域 */
+.qr-section { padding: 12px 0; display: flex; justify-content: center; }
+.qr-box { text-align: center; animation: fadeInUp 0.3s ease-out; }
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.qr-canvas {
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border);
+  display: block; margin: 0 auto;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.3s;
+}
+.qr-canvas:hover { transform: scale(1.02); }
+.qr-loading { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--text2); padding: 36px 0; }
+.qr-hint { color: var(--text2); font-size: 13px; margin-top: 10px; line-height: 1.6; }
+.qr-expire { color: var(--text3); font-size: 12px; margin-top: 6px; }
+.qr-status-box { text-align: center; padding: 28px 0; animation: statusPop 0.35s ease-out; }
+@keyframes statusPop {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.qr-status-box.scanned .qr-status-text { color: var(--warm-amber); }
+.qr-status-box.approved .qr-status-text { color: var(--success-green); }
+.qr-status-text { font-size: 18px; font-weight: 700; color: var(--text1); margin: 14px 0 4px; }
+.qr-status-sub { color: var(--text2); font-size: 13px; line-height: 1.5; }
+
+/* 成功态庆祝 */
+.result-box { padding: 20px 0; animation: celebrateIn 0.45s ease-out; }
+@keyframes celebrateIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
 </style>

@@ -33,21 +33,23 @@
       <van-date-picker v-model="endPicker" @confirm="v => { endDate = v.selectedValues.join('-'); showEnd = false; loadPlans() }" @cancel="showEnd = false" />
     </van-popup>
 
-    <div class="plans-list" v-if="groupedPlans.length > 0">
+    <transition-group name="stat-anim" tag="div" class="plans-list" v-if="groupedPlans.length > 0">
       <div v-for="group in groupedPlans" :key="group.date" class="date-group">
-        <div class="date-label">{{ group.date }}</div>
-        <div v-for="plan in group.plans" :key="plan.id" class="plan-card">
-          <div class="plan-header">
-            <div class="meal-badge" :class="plan.mealType.toLowerCase()">{{ mealTypeLabel(plan.mealType) }}</div>
-            <van-tag type="warning" plain size="small">{{ plan.user.name }}</van-tag>
+        <div class="date-label"><span class="dot"></span>{{ group.date }}</div>
+        <transition-group tag="div" :key="'cards'+group.date" name="plan-card-anim">
+          <div v-for="plan in group.plans" :key="plan.id" class="plan-card">
+            <div class="plan-header">
+              <div class="meal-badge" :class="plan.mealType.toLowerCase()">{{ mealTypeLabel(plan.mealType) }}</div>
+              <van-tag type="warning" plain size="small">{{ plan.user.name }}</van-tag>
+            </div>
+            <div class="plan-dishes">
+              <van-tag v-for="item in plan.items" :key="item.id" type="primary" plain class="plan-dish-tag">{{ item.dish.name }}</van-tag>
+            </div>
           </div>
-          <div class="plan-dishes">
-            <van-tag v-for="item in plan.items" :key="item.id" type="primary" plain style="margin:3px">{{ item.dish.name }}</van-tag>
-          </div>
-        </div>
+        </transition-group>
       </div>
-    </div>
-    <van-empty v-else description="暂无数据" />
+    </transition-group>
+    <van-empty v-else description="暂无点餐记录" image-size="100" />
   </div>
 </template>
 
@@ -75,42 +77,46 @@ function onUserConfirm({ selectedOptions }) { selectedUserId.value = selectedOpt
 function mealTypeLabel(t) { return { BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐' }[t] || t }
 const groupedPlans = computed(() => {
   const map = {}
-  for (const plan of plans.value) {
-    if (!map[plan.date]) map[plan.date] = []
-    map[plan.date].push(plan)
-  }
+  for (const plan of plans.value) { if (!map[plan.date]) map[plan.date] = []; map[plan.date].push(plan) }
   return Object.entries(map).sort(([a],[b]) => a.localeCompare(b)).map(([date, ps]) => ({ date, plans: ps }))
 })
-async function loadPlans() {
-  const params = { startDate: startDate.value, endDate: endDate.value }
-  if (selectedUserId.value !== 'all') params.userId = selectedUserId.value
-  plans.value = await mealApi.list(params)
-}
+async function loadPlans() { const params = { startDate: startDate.value, endDate: endDate.value }; if (selectedUserId.value !== 'all') params.userId = selectedUserId.value; plans.value = await mealApi.list(params) }
 onMounted(async () => { users.value = await userApi.list(); await loadPlans() })
 </script>
 
 <style scoped>
 .order-stats { min-height: 100vh; background: var(--bg); padding-bottom: 20px; }
-.page-header { background: linear-gradient(135deg, #1d4ed8, #3b82f6); padding: 16px 20px; color: white; }
-.header-title { font-size: 18px; font-weight: 700; }
+.page-header { background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%); padding: var(--space-lg); color: white; flex-shrink: 0; }
+.header-title { font-size: 18px; font-weight: 800; }
+
 .filter-card {
-  margin: 16px; background: white; border-radius: 14px;
-  padding: 4px 0; box-shadow: var(--shadow);
+  margin: var(--space-lg); background: white; border-radius: var(--radius-md);
+  box-shadow: var(--shadow); overflow: hidden;
 }
 .filter-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #f1f5f9;
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px; cursor: pointer; border-bottom: 1px solid var(--border-light);
+  transition: background 0.15s;
 }
+.filter-item:hover { background: var(--bg); }
 .filter-item:last-child { border-bottom: none; }
-.filter-label { font-size: 13px; color: var(--text2); width: 32px; }
-.filter-val { flex: 1; font-size: 13px; font-weight: 600; color: var(--text1); }
-.plans-list { padding: 0 16px; }
-.date-group { margin-bottom: 16px; }
-.date-label { font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 8px; padding-left: 4px; }
-.plan-card { background: white; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--shadow); }
-.plan-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.meal-badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-.meal-badge.breakfast { background: #fef3c7; color: #d97706; }
-.meal-badge.lunch { background: #dcfce7; color: #16a34a; }
-.meal-badge.dinner { background: #ede9fe; color: #7c3aed; }
+.filter-label { font-size: 12px; color: var(--text2); width: 32px; font-weight: 600; flex-shrink: 0; }
+.filter-val { flex: 1; font-size: 13px; font-weight: 700; color: var(--text1); }
+
+.plans-list { padding: 0 var(--space-lg) var(--space-xl); position: relative; z-index: 0; }
+.stat-anim-move { transition: all 0.35s ease; }
+.stat-anim-enter-active { transition: all 0.25s ease-out; }
+.stat-anim-enter-from { opacity: 0; transform: translateY(10px); }
+.plan-card-anim-move { transition: all 0.25s ease; }
+
+.date-group { margin-bottom: var(--space-xl); }
+.date-label { font-size: 14px; font-weight: 800; color: var(--primary); margin-bottom: var(--space-sm); padding-left: 4px; display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #60a5fa); flex-shrink: 0; }
+.plan-card { background: white; border-radius: var(--radius-md); padding: 14px; margin-bottom: 8px; box-shadow: var(--shadow); transition: all 0.2s; border-left: 3px solid transparent; }
+.plan-card:hover { border-color: #bfdbfe; box-shadow: var(--shadow-md); }
+.plan-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 6px; }
+.meal-badge { padding: 5px 14px; border-radius: var(--radius-full); font-size: 12px; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap; }
+.plan-dishes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.plan-dish-tag { margin: 0 !important; transition: transform 0.15s; }
+.plan-dish-tag:hover { transform: scale(1.05); }
 </style>

@@ -31,24 +31,28 @@
     </div>
 
     <!-- 当天餐单 -->
-    <div class="meals-section">
-      <div class="section-title">{{ selectedDate === todayDate ? '今日餐单' : selectedDate + ' 餐单' }}</div>
-      <div v-if="selectedDatePlans.length > 0" class="meal-cards">
-        <div v-for="plan in selectedDatePlans" :key="plan.id" class="meal-card">
-          <div class="meal-card-left">
-            <div class="meal-type-badge" :class="plan.mealType.toLowerCase()">{{ mealTypeLabel(plan.mealType) }}</div>
-          </div>
-          <div class="meal-dishes">
-            <van-tag v-for="item in plan.items" :key="item.id" type="primary" plain style="margin: 3px; font-size: 13px;">{{ item.dish.name }}</van-tag>
-          </div>
+    <transition name="meal-fade" mode="out-in">
+      <div :key="selectedDate" class="meals-section">
+        <div class="section-title">{{ selectedDate === todayDate ? '今日餐单' : selectedDate + ' 餐单' }}</div>
+        <template v-if="selectedDatePlans.length > 0">
+          <transition-group name="meal-list" tag="div" class="meal-cards">
+            <div v-for="plan in selectedDatePlans" :key="plan.id" class="meal-card">
+              <div class="meal-card-left">
+                <div class="meal-type-badge" :class="plan.mealType.toLowerCase()">{{ mealTypeLabel(plan.mealType) }}</div>
+              </div>
+              <div class="meal-dishes">
+                <van-tag v-for="item in plan.items" :key="item.id" type="primary" plain class="dish-tag">{{ item.dish.name }}</van-tag>
+              </div>
+            </div>
+          </transition-group>
+        </template>
+        <div v-else class="empty-state">
+          <div class="empty-illustration">🍳</div>
+          <div class="empty-text">今天还没有安排</div>
+          <van-button type="primary" round size="small" @click="$router.push('/order')">立即点餐</van-button>
         </div>
       </div>
-      <div v-else class="empty-state">
-        <div class="empty-icon">🍽️</div>
-        <div class="empty-text">今天还没有安排</div>
-        <van-button type="primary" round size="small" @click="$router.push('/order')">立即点餐</van-button>
-      </div>
-    </div>
+    </transition>
   </div>
 </template>
 
@@ -89,68 +93,69 @@ onMounted(async () => {
 .home { min-height: 100vh; background: var(--bg); }
 .header {
   background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
-  padding: 20px 20px 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  color: white;
+  padding: var(--space-xl) var(--space-lg);
+  display: flex; justify-content: space-between;
+  align-items: flex-start; color: white;
 }
-.greeting { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-.date-text { font-size: 12px; opacity: 0.8; }
-.admin-btn { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.4); color: white; }
+.greeting { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+.date-text { font-size: 12px; opacity: 0.85; font-weight: 500; }
+.admin-btn { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.4); color: white; font-weight: 600; }
 
 .week-card {
-  background: white;
-  margin: -12px 16px 0;
-  border-radius: 16px;
-  padding: 16px;
-  box-shadow: var(--shadow-md);
-  position: relative;
-  z-index: 1;
+  background: white; margin: -12px var(--space-lg) 0;
+  border-radius: var(--radius-lg); padding: var(--space-lg);
+  box-shadow: var(--shadow-md); position: relative; z-index: 1;
 }
-.week-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.week-title { font-weight: 700; font-size: 15px; color: var(--text1); }
+.week-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); }
+.week-title { font-weight: 700; font-size: var(--text-base); color: var(--text1); }
 .week-days { display: flex; gap: 4px; }
 .day-item {
-  flex: 1;
-  text-align: center;
-  padding: 8px 2px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 2px solid transparent;
+  flex: 1; text-align: center; padding: 8px 2px;
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: all 0.25s ease; border: 2px solid transparent; position: relative;
 }
-.day-item.active { background: var(--primary-light); border-color: var(--primary); }
+.day-item.active { background: var(--primary-light); border-color: var(--primary); transform: translateY(-2px); }
 .day-item.today .day-num { color: var(--primary); font-weight: 700; }
-.day-name { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+.day-name { font-size: 11px; color: var(--text2); margin-bottom: 4px; font-weight: 600; }
 .day-num { font-size: 14px; font-weight: 600; color: var(--text1); margin-bottom: 5px; }
-.day-dot { width: 5px; height: 5px; border-radius: 50%; background: #e2e8f0; margin: 0 auto; }
-.day-dot.has { background: var(--primary); }
+.day-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border-light); margin: 0 auto; transition: all 0.3s; }
+.day-dot.has { background: linear-gradient(135deg, #2563eb, #3b82f6); box-shadow: 0 0 6px rgba(37,99,235,0.3); }
 
-.meals-section { padding: 20px 16px; }
-.section-title { font-size: 16px; font-weight: 700; color: var(--text1); margin-bottom: 12px; }
+.meals-section { padding: var(--space-xl) var(--space-lg) var(--space-2xl); }
+.section-title { font-size: 16px; font-weight: 700; color: var(--text1); margin-bottom: var(--space-md); }
 .meal-cards { display: flex; flex-direction: column; gap: 10px; }
 .meal-card {
-  background: white;
-  border-radius: 12px;
-  padding: 14px;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  box-shadow: var(--shadow);
+  background: white; border-radius: var(--radius-md); padding: var(--space-md);
+  display: flex; align-items: flex-start; gap: var(--space-md);
+  box-shadow: var(--shadow); transition: transform 0.2s;
 }
+.meal-card:active { transform: scale(0.98); }
 .meal-type-badge {
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
+  padding: 4px 10px; border-radius: var(--radius-full);
+  font-size: 12px; font-weight: 700; white-space: nowrap; letter-spacing: 0.5px;
 }
-.meal-type-badge.breakfast { background: #fef3c7; color: #d97706; }
-.meal-type-badge.lunch { background: #dcfce7; color: #16a34a; }
-.meal-type-badge.dinner { background: #ede9fe; color: #7c3aed; }
-.meal-dishes { flex: 1; }
-.empty-state { text-align: center; padding: 40px 20px; background: white; border-radius: 16px; box-shadow: var(--shadow); }
-.empty-icon { font-size: 48px; margin-bottom: 12px; }
-.empty-text { color: var(--text2); margin-bottom: 16px; }
+.meal-dishes { flex: 1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dish-tag { margin: 0 !important; font-size: 13px !important; transition: transform 0.15s; }
+.dish-tag:hover { transform: scale(1.03); }
+
+.empty-state {
+  text-align: center; padding: 40px 20px; background: white;
+  border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  border: 2px dashed var(--border);
+}
+.empty-illustration { font-size: 48px; margin-bottom: 14px; animation: gentleBounce 2s ease-in-out infinite; }
+@keyframes gentleBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.empty-text { color: var(--text2); margin-bottom: 16px; font-size: 14px; }
+
+/* 餐单切换过渡 */
+.meal-fade-enter-active, .meal-fade-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.meal-fade-enter-from { opacity: 0; transform: translateY(8px); }
+.meal-fade-leave-to { opacity: 0; transform: translateY(-8px); }
+
+/* 菜品列表动画 */
+.meal-list-enter-active { transition: all 0.3s ease-out; }
+.meal-list-enter-from { opacity: 0; transform: translateX(-16px); }
 </style>

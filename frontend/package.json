@@ -8,10 +8,12 @@
   },
   "dependencies": {
     "axios": "^1.6.7",
+    "echarts": "^6.0.0",
     "pinia": "^2.1.7",
     "qrcode": "^1.5.4",
     "vant": "^4.8.5",
     "vue": "^3.4.19",
+    "vue-echarts": "^8.0.1",
     "vue-router": "^4.3.0"
   },
   "devDependencies": {

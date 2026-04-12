@@ -78,3 +78,18 @@ export const ingredientApi = {
   summary: (params) => api.get('/ingredients/summary', { params }),
   byOrder: (params) => api.get('/ingredients/by-order', { params })
 }
+
+export const ratingApi = {
+  list: (dishId) => api.get(`/ratings/dish/${dishId}`),
+  save: (data) => api.post('/ratings', data),
+  remove: (id) => api.delete(`/ratings/${id}`)
+}
+
+export const statsApi = {
+  overview: () => api.get('/stats/overview')
+}
+
+export const dishBindingApi = {
+  list: (dishId) => api.get(`/dish-bindings/dish/${dishId}`),
+  save: (data) => api.post('/dish-bindings', data)
+}
