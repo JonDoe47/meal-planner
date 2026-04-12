@@ -2,8 +2,8 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-# 只安装生产依赖（排除 canvas 等本地开发工具）
-RUN npm install --omit=dev
+# 安装全部依赖（含 vite 等构建工具）
+RUN npm install --ignore-scripts
 COPY frontend/ ./
 RUN npm run build
 
