@@ -148,13 +148,8 @@
           <!-- 食材 -->
           <div class="field-item">
             <div class="field-label"><span class="label-icon">🧄</span> 食材清单（可选）</div>
-            <textarea
-              v-model="ingText"
-              class="ing-textarea"
-              placeholder="每行一个食材，或用逗号分隔&#10;例如：猪肉, 土豆, 葱, 盐"
-              rows="4"
-            ></textarea>
-            <div class="field-tip">每行一个或逗号分隔，用户点餐后汇总给管理员</div>
+            <van-field v-model="ingText" placeholder="猪肉、土豆、葱、盐（以、或逗号分隔）" class="f-input" />
+            <div class="field-tip">以顿号或逗号分隔，用户点餐后汇总给管理员</div>
           </div>
 
           <!-- 烹饪步骤 -->
@@ -162,17 +157,17 @@
             <div class="field-label" style="display:flex;align-items:center;gap:8px">
               <span class="label-icon">👨‍🍳</span> 烹饪步骤（可选）
               <van-loading v-if="stepsLoading" size="14" color="#f59e0b" style="margin-left:4px" />
-              <span v-else-if="!parsedBvid" style="font-size:11px;color:#94a3b8;font-weight:400">粘贴B站链接后自动生成</span>
             </div>
-            <div v-if="stepList.length > 0" class="steps-preview">
-              <div v-for="(step, i) in stepList" :key="i" class="step-item-edit">
-                <span class="step-num">{{ i + 1 }}</span>
-                <span class="step-text">{{ step }}</span>
-                <van-icon name="cross" size="14" color="#94a3b8" @click="removeStep(i)" class="step-del" />
-              </div>
-              <van-button size="mini" plain :loading="stepsLoading" @click="generateSteps" class="re-gen-btn">重新生成</van-button>
+            <textarea
+              v-model="stepsText"
+              class="ing-textarea"
+              rows="5"
+              placeholder="1. 热锅冷油&#10;2. 加入食材翻炒&#10;3. 调味装盘"
+            ></textarea>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+              <div class="field-tip" style="margin:0">每行一步，支持直接编辑</div>
+              <van-button size="mini" plain :loading="stepsLoading" :disabled="!parsedBvid" @click="generateSteps" class="re-gen-btn">AI生成步骤</van-button>
             </div>
-            <div v-else class="field-tip">填写B站链接后，点击「AI生成做法」自动生成分步说明</div>
           </div>
 
           <!-- 关联菜品 -->
@@ -316,12 +311,12 @@ const form = ref({ name: '', categoryId: null, biliUrl: '', description: '' })
 const ingText = ref('')
 
 function parseIngText() {
-  return [...new Set(ingText.value.split(/[\n,，]+/).map(s => s.trim()).filter(Boolean))]
+  return [...new Set(ingText.value.split(/[\n,，、]+/).map(s => s.trim()).filter(Boolean))]
 }
 
 const aiLoading = ref(false)
 const stepsLoading = ref(false)
-const stepList = ref([])
+const stepsText = ref('')
 const previewBvid = ref('')
 
 // 本地视频
@@ -396,12 +391,11 @@ async function generateSteps() {
   stepsLoading.value = true
   try {
     const res = await biliApi.getCookingSteps(parsedBvid.value)
-    stepList.value = res.steps
+    stepsText.value = res.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')
     showToast({ type: 'success', message: `已生成 ${res.steps.length} 个步骤` })
   } catch (e) { showToast({ type: 'fail', message: e.message || 'AI生成失败' }) }
   finally { stepsLoading.value = false }
 }
-function removeStep(i) { stepList.value.splice(i, 1) }
 
 const groupedBindings = computed(() => {
   const g = {}
@@ -444,7 +438,7 @@ async function analyzeWithAI() {
     if (Array.isArray(res.ingredients) && res.ingredients.length > 0) {
       const existing = parseIngText(); const existingSet = new Set(existing)
       const merged = [...existing, ...res.ingredients.filter(ing => ing && !existingSet.has(ing))]
-      ingText.value = merged.join('\n')
+      ingText.value = merged.join('、')
       showToast({ type: 'success', message: `AI识别成功：${res.ingredients.length} 种食材${res.category ? `，分类：${res.category}` : ''}` })
     } else { showToast({ message: '未识别到食材', duration: 2500 }) }
   } catch (e) { showToast({ type: 'fail', message: e.message || 'AI识别失败' }) }
@@ -459,11 +453,11 @@ const parsedBvid = computed(() => { const m = form.value.biliUrl?.match(/BV[a-zA
 watch(parsedBvid, async (newBvid) => {
   if (!newBvid) return
   // 自动识别名称、分类、食材（未填写时）
-  if (!form.value.name.trim() || ingredientList.value.length === 0) {
+  if (!form.value.name.trim() || ingText.value.length === 0) {
     await analyzeWithAI()
   }
   // 自动生成步骤（未填写时）
-  if (!stepList.value.length) {
+  if (!stepsText.value.trim()) {
     await generateSteps()
   }
 })
@@ -481,7 +475,7 @@ function validate() { errors.value.name = !form.value.name.trim(); errors.value.
 
 function openAdd() {
   editing.value = null; form.value = { name: '', categoryId: null, biliUrl: '', description: '' }
-  ingText.value = ''; stepList.value = []; previewBvid.value = ''
+  ingText.value = ''; stepsText.value = ''; previewBvid.value = ''
   imageFile.value = null; biliImageUrl.value = ''; previewImage.value = ''; errors.value = { name: false, categoryId: false }
   bindingList.value = []; bindSelectedDish.value = null; newBindType.value = ''
   videoMode.value = 'bili'; videoFile.value = null; videoPreviewUrl.value = ''; existingVideoUrl.value = ''
@@ -491,8 +485,8 @@ function openAdd() {
 function openEdit(dish) {
   editing.value = dish
   form.value = { name: dish.name, categoryId: Number(dish.categoryId), biliUrl: dish.bvid ? `https://www.bilibili.com/video/${dish.bvid}` : '', description: dish.description || '' }
-  try { ingText.value = dish.ingredients ? JSON.parse(dish.ingredients).join('\n') : '' } catch { ingText.value = '' }
-  try { stepList.value = dish.cookingSteps ? JSON.parse(dish.cookingSteps) : [] } catch { stepList.value = [] }
+  try { ingText.value = dish.ingredients ? JSON.parse(dish.ingredients).join('、') : '' } catch { ingText.value = '' }
+  try { const steps = dish.cookingSteps ? JSON.parse(dish.cookingSteps) : []; stepsText.value = steps.map((s, i) => `${i + 1}. ${s}`).join('\n') } catch { stepsText.value = '' }
   previewBvid.value = ''; imageFile.value = null; biliImageUrl.value = dish.imageUrl || ''; previewImage.value = dish.imageUrl || ''
   errors.value = { name: false, categoryId: false }; bindingList.value = []; bindSelectedDish.value = null; newBindType.value = ''
   if (dish.videoUrl) {
@@ -519,7 +513,8 @@ async function saveDish() {
     fd.append('bvid', videoMode.value === 'local' ? '' : (parsedBvid.value || ''))
     fd.append('description', form.value.description || '')
     fd.append('ingredients', parseIngText().length ? JSON.stringify(parseIngText()) : '')
-    fd.append('cookingSteps', stepList.value.length ? JSON.stringify(stepList.value) : '')
+    const parsedStepsArr = stepsText.value.split('\n').map(s => s.replace(/^\d+\.\s*/, '').trim()).filter(Boolean)
+    fd.append('cookingSteps', parsedStepsArr.length ? JSON.stringify(parsedStepsArr) : '')
     if (imageFile.value) fd.append('image', imageFile.value)
     else if (biliImageUrl.value) fd.append('existingImageUrl', biliImageUrl.value)
     if (videoMode.value === 'local') {
@@ -655,24 +650,7 @@ onMounted(async () => { categories.value = await categoryApi.list(); await loadD
 }
 .ing-textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
 .field-tip { font-size: 11px; color: var(--text3); margin-top: 8px; line-height: 1.45; }
-.steps-preview { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
-.step-item-edit {
-  display: flex; align-items: flex-start; gap: 8px;
-  background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-radius: var(--radius-sm); padding: 10px 12px;
-  border-left: 3px solid var(--success-green); transition: transform 0.15s;
-}
-.step-item-edit:hover { transform: translateX(4px); }
-.step-num {
-  width: 22px; height: 22px; border-radius: 50%;
-  background: linear-gradient(135deg, #22c55e, #4ade80); color: white;
-  font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; margin-top: 1px;
-}
-.step-text { flex: 1; font-size: 13px; color: var(--text1); line-height: 1.55; }
-.step-del { flex-shrink: 0; cursor: pointer; transition: color 0.15s; }
-.step-del:hover { color: #ef4444; }
-.ai-step-btn { font-size: 12px; }
-.re-gen-btn { margin-top: 6px; font-size: 12px; color: var(--text3); }
+.re-gen-btn { font-size: 12px; color: var(--text3); }
 
 /* 关联菜品 */
 .binding-section { background: linear-gradient(135deg, #fdf4ff, #fae8ff); border-color: #e9d5ff !important; }

@@ -113,9 +113,27 @@
 
       <div class="confirm-footer">
         <van-button plain round @click="step = 1" style="flex:1">重新导入</van-button>
-        <van-button type="primary" round :loading="saving" :disabled="!okResults.some(r=>r.selected)" @click="batchSave" style="flex:2;margin-left:12px">
+        <van-button type="primary" round :disabled="!okResults.some(r=>r.selected)" @click="batchSave" style="flex:2;margin-left:12px">
           添加选中菜品（{{ okResults.filter(r=>r.selected).length }} 个）
         </van-button>
+      </div>
+    </div>
+
+    <!-- Step 4: 保存进度 -->
+    <div v-if="step === 4" class="step-wrap">
+      <div class="progress-card">
+        <div class="progress-title">正在保存菜品...</div>
+        <van-progress :percentage="saveProgressPct" color="#16a34a" style="margin: 16px 0" />
+        <div class="progress-text">{{ saveDone }} / {{ saveTotal }} 已完成</div>
+        <div class="progress-current" v-if="saveCurrent">正在保存：{{ saveCurrent }}</div>
+      </div>
+      <div v-if="saveResults.length > 0" class="results-preview">
+        <div v-for="(r, i) in saveResults" :key="i" class="result-preview-item" :class="{ 'result-fail': !r.success }">
+          <van-icon :name="r.success ? 'passed' : 'warning-o'" :color="r.success ? '#22c55e' : '#ef4444'" size="16" />
+          <span class="result-preview-name">{{ r.name }}</span>
+          <van-tag v-if="r.success" type="success" plain size="small">成功</van-tag>
+          <van-tag v-else type="danger" plain size="small">失败</van-tag>
+        </div>
       </div>
     </div>
 
@@ -149,6 +167,10 @@ const currentTitle = ref('')
 const saving = ref(false)
 const showCatPicker = ref(false)
 const editingResultIdx = ref(null)
+const saveDone = ref(0)
+const saveTotal = ref(0)
+const saveCurrent = ref('')
+const saveResults = ref([])
 
 const categoryOptions = computed(() => categories.value.map(c => ({ text: c.name, value: c.id })))
 
@@ -158,6 +180,7 @@ const parsedUrlCount = computed(() => {
 })
 
 const progressPct = computed(() => queue.value.length ? Math.round(doneCount.value / queue.value.length * 100) : 0)
+const saveProgressPct = computed(() => saveTotal.value ? Math.round(saveDone.value / saveTotal.value * 100) : 0)
 const okResults = computed(() => results.value.filter(r => !r.failed && !r.isDuplicate))
 const dupResults = computed(() => results.value.filter(r => r.isDuplicate))
 const failResults = computed(() => results.value.filter(r => r.failed))
@@ -288,27 +311,50 @@ async function batchSave() {
     return
   }
 
+  // 切换到进度页
   saving.value = true
-  try {
-    const dishes = toSave.map(r => ({
-      name: r.dishName,
-      categoryId: r.categoryId,
-      bvid: r.bvid,
-      imageUrl: r.cover || null,
-      ingredients: r.ingredients
-    }))
-    const { successCount, failCount } = await dishApi.batch(dishes)
+  saveTotal.value = toSave.length
+  saveDone.value = 0
+  saveCurrent.value = ''
+  saveResults.value = []
+  step.value = 4
+
+  for (const r of toSave) {
+    saveCurrent.value = r.dishName
+    try {
+      await dishApi.batch([{
+        name: r.dishName,
+        categoryId: r.categoryId,
+        bvid: r.bvid,
+        imageUrl: r.cover || null,
+        ingredients: r.ingredients
+      }])
+      saveResults.value.push({ name: r.dishName, success: true })
+    } catch (e) {
+      saveResults.value.push({ name: r.dishName, success: false, error: e.message })
+    }
+    saveDone.value++
+  }
+
+  saveCurrent.value = ''
+  saving.value = false
+
+  const successCount = saveResults.value.filter(r => r.success).length
+  const failCount = saveResults.value.filter(r => !r.success).length
+
+  // 全部失败才停留，否则延迟后跳回首页
+  if (successCount > 0) {
     showToast({ type: 'success', message: `成功添加 ${successCount} 道菜${failCount ? '，' + failCount + ' 个失败' : ''}` })
-    step.value = 1
-    urlsText.value = ''
-    favUrl.value = ''
-    favVideos.value = []
-    results.value = []
-    queue.value = []
-  } catch (e) {
-    showToast({ type: 'fail', message: e.message || '批量保存失败' })
-  } finally {
-    saving.value = false
+    setTimeout(() => {
+      step.value = 1
+      urlsText.value = ''
+      favUrl.value = ''
+      favVideos.value = []
+      results.value = []
+      queue.value = []
+    }, failCount > 0 ? 3000 : 1500)
+  } else {
+    showToast({ type: 'fail', message: '全部保存失败，请检查后重试' })
   }
 }
 
