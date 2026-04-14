@@ -8,6 +8,25 @@ function extractBvid(input) {
   return match ? match[0] : null
 }
 
+async function downloadCover(picUrl, bvid) {
+  try {
+    const imgRes = await fetch(picUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://www.bilibili.com'
+      }
+    })
+    const buffer = await imgRes.arrayBuffer()
+    const filename = `bili_${bvid}_${Date.now()}.jpg`
+    const uploadDir = path.join(__dirname, '../../uploads')
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
+    fs.writeFileSync(path.join(uploadDir, filename), Buffer.from(buffer))
+    return `/uploads/${filename}`
+  } catch {
+    return null
+  }
+}
+
 router.get('/cover', authMiddleware, async (req, res) => {
   const { url } = req.query
   if (!url) return res.status(400).json({ message: '请提供B站链接或BV号' })
@@ -31,19 +50,9 @@ router.get('/cover', authMiddleware, async (req, res) => {
     const realBvid = data.data.bvid
 
     // 下载封面图片到 uploads
-    const imgRes = await fetch(picUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Referer': 'https://www.bilibili.com'
-      }
-    })
-    const buffer = await imgRes.arrayBuffer()
-    const filename = `bili_${realBvid}_${Date.now()}.jpg`
-    const uploadDir = path.join(__dirname, '../../uploads')
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
-    fs.writeFileSync(path.join(uploadDir, filename), Buffer.from(buffer))
+    const imageUrl = await downloadCover(picUrl, realBvid)
 
-    res.json({ bvid: realBvid, imageUrl: `/uploads/${filename}`, title })
+    res.json({ bvid: realBvid, imageUrl, title })
   } catch (e) {
     res.status(500).json({ message: '获取封面失败: ' + e.message })
   }
@@ -66,21 +75,30 @@ router.post('/analyze', authMiddleware, async (req, res) => {
     : ''
 
   try {
-    const bibiRes = await fetch('https://api.bibigpt.co/api/v1/summarizeWithConfig', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${bibiApiKey}`
-      },
-      body: JSON.stringify({
-        url: videoUrl,
-        promptConfig: {
-          outputLanguage: 'zh',
-          customPrompt: `这是一个烹饪视频。请提取菜品名称、所需食材${catHint}，严格按以下JSON格式返回，不含任何其他文字或markdown：{"dishName":"红烧肉","category":"家常菜","ingredients":["猪五花肉","生姜","大葱","料酒","生抽","老抽","冰糖"]}。菜品名称去掉"做法""教程""怎么做""家常""简单"等修饰词，只保留核心菜名；食材只写名称不写用量，去重。`
-        }
+    // AI分析和封面下载并行执行
+    const [bibiRes, biliInfoRes] = await Promise.all([
+      fetch('https://api.bibigpt.co/api/v1/summarizeWithConfig', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${bibiApiKey}`
+        },
+        body: JSON.stringify({
+          url: videoUrl,
+          promptConfig: {
+            outputLanguage: 'zh',
+            customPrompt: `这是一个烹饪视频。请提取菜品名称、所需食材${catHint}，严格按以下JSON格式返回，不含任何其他文字或markdown：{"dishName":"红烧肉","category":"家常菜","ingredients":["猪五花肉","生姜","大葱","料酒","生抽","老抽","冰糖"]}。菜品名称去掉"做法""教程""怎么做""家常""简单"等修饰词，只保留核心菜名；食材只写名称不写用量，去重。`
+          }
+        }),
+        signal: AbortSignal.timeout(120000)
       }),
-      signal: AbortSignal.timeout(120000)
-    })
+      fetch(`https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://www.bilibili.com'
+        }
+      })
+    ])
 
     if (!bibiRes.ok) {
       const errText = await bibiRes.text()
@@ -90,6 +108,15 @@ router.post('/analyze', authMiddleware, async (req, res) => {
     const bibiData = await bibiRes.json()
     const rawSummary = bibiData.summary || ''
     const rawTitle = bibiData.detail?.title || bvid
+
+    // 下载封面
+    let imageUrl = null
+    try {
+      const biliInfo = await biliInfoRes.json()
+      if (biliInfo.code === 0 && biliInfo.data?.pic) {
+        imageUrl = await downloadCover(biliInfo.data.pic, bvid)
+      }
+    } catch { /* 封面获取失败不影响主流程 */ }
 
     let parsed = { dishName: '', category: '', ingredients: [] }
     try {
@@ -101,7 +128,7 @@ router.post('/analyze', authMiddleware, async (req, res) => {
     if (!Array.isArray(parsed.ingredients)) parsed.ingredients = []
     if (typeof parsed.category !== 'string') parsed.category = ''
 
-    res.json({ dishName: parsed.dishName, category: parsed.category, ingredients: parsed.ingredients, rawTitle })
+    res.json({ dishName: parsed.dishName, category: parsed.category, ingredients: parsed.ingredients, rawTitle, imageUrl })
   } catch (e) {
     if (e.name === 'TimeoutError') return res.status(503).json({ message: 'BiBiGPT 处理超时（视频较长时需要更多时间），请稍后重试' })
     res.status(500).json({ message: 'AI识别失败: ' + e.message })
@@ -129,26 +156,40 @@ router.get('/favorites', authMiddleware, async (req, res) => {
   if (!mediaId) return res.status(400).json({ message: '无法识别收藏夹ID，请检查链接格式' })
 
   try {
-    const apiRes = await fetch(
-      `https://api.bilibili.com/x/v3/fav/resource/list?media_id=${mediaId}&pn=1&ps=40&type=0&platform=web`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Referer': 'https://www.bilibili.com'
+    const allVideos = []
+    let page = 1
+    let hasMore = true
+
+    while (hasMore) {
+      const apiRes = await fetch(
+        `https://api.bilibili.com/x/v3/fav/resource/list?media_id=${mediaId}&pn=${page}&ps=40&type=0&platform=web`,
+        {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://www.bilibili.com'
+          }
         }
-      }
-    )
-    const data = await apiRes.json()
-    if (data.code !== 0) return res.status(400).json({ message: 'B站接口错误: ' + data.message })
+      )
+      const data = await apiRes.json()
+      if (data.code !== 0) return res.status(400).json({ message: 'B站接口错误: ' + data.message })
 
-    const videos = (data.data?.medias || []).map(v => ({
-      bvid: v.bvid,
-      title: v.title,
-      cover: v.cover,
-      url: `https://www.bilibili.com/video/${v.bvid}`
-    }))
+      const medias = data.data?.medias || []
+      medias.forEach(v => {
+        if (v.bvid) {
+          allVideos.push({
+            bvid: v.bvid,
+            title: v.title,
+            cover: v.cover,
+            url: `https://www.bilibili.com/video/${v.bvid}`
+          })
+        }
+      })
 
-    res.json({ total: data.data?.info?.media_count || videos.length, videos })
+      hasMore = !!data.data?.has_more
+      page++
+    }
+
+    res.json({ total: allVideos.length, videos: allVideos })
   } catch (e) {
     res.status(500).json({ message: '获取收藏夹失败: ' + e.message })
   }

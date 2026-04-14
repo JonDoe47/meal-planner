@@ -231,7 +231,7 @@ async function startAnalyze() {
       results.value.push({
         bvid: video.bvid,
         title: video.title,
-        cover: res.cover || video.cover || '',
+        cover: res.imageUrl || video.cover || '',
         dishName,
         category: res.category || '',
         categoryId,

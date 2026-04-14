@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- 背景圆形 -->
+  <circle cx="32" cy="32" r="30" fill="#f97316"/>
+  <!-- 餐盘 -->
+  <ellipse cx="32" cy="36" rx="16" ry="4" fill="none" stroke="white" stroke-width="2.5"/>
+  <path d="M16 36 Q16 48 32 48 Q48 48 48 36" fill="white" opacity="0.9"/>
+  <!-- 碗盖 -->
+  <path d="M18 36 Q18 26 32 26 Q46 26 46 36" fill="white"/>
+  <!-- 筷子 -->
+  <line x1="24" y1="14" x2="20" y2="26" stroke="white" stroke-width="2" stroke-linecap="round"/>
+  <line x1="28" y1="14" x2="26" y2="26" stroke="white" stroke-width="2" stroke-linecap="round"/>
+</svg>

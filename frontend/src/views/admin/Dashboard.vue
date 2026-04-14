@@ -38,6 +38,18 @@
       </div>
     </div>
 
+    <!-- 今日食材采购卡 -->
+    <div v-if="todayIngCount > 0" class="ing-banner" @click="$router.push('/admin/ingredients')">
+      <div class="ing-banner-left">
+        <span class="ing-banner-icon">🛒</span>
+        <div>
+          <div class="ing-banner-title">今日食材采购清单</div>
+          <div class="ing-banner-sub">{{ stats.todayOrders }} 人已点餐，共需 <strong>{{ todayIngCount }}</strong> 种食材</div>
+        </div>
+      </div>
+      <div class="ing-banner-arrow">查看 →</div>
+    </div>
+
     <div class="quick-section">
       <div class="section-title">快捷操作</div>
       <div class="quick-grid">
@@ -110,6 +122,7 @@ use([CanvasRenderer, PieChart, LineChart, BarChart, GridComponent, TooltipCompon
 const auth = useAuthStore()
 const router = useRouter()
 const stats = ref({ dishCount: 0, userCount: 0, todayOrders: 0, pendingRequests: 0 })
+const todayIngCount = ref(0)
 const chartData = ref({ categoryDist: [], trend: { dates: [], counts: [] }, topDishes: [], ratingDist: [0, 0, 0, 0, 0] })
 
 function logout() { auth.logout(); router.push('/login') }
@@ -202,11 +215,12 @@ const barRatingOption = computed(() => ({
 
 onMounted(async () => {
   const today = new Date().toISOString().split('T')[0]
-  const [dishes, users, orders, requests, overview] = await Promise.all([
+  const [dishes, users, orders, requests, overview, ingBadge] = await Promise.all([
     dishApi.list(), userApi.list(),
     mealApi.list({ startDate: today, endDate: today }),
     dishRequestApi.list(),
-    statsApi.overview()
+    statsApi.overview(),
+    mealApi.ingredientBadge()
   ])
   stats.value = {
     dishCount: dishes.length,
@@ -215,6 +229,7 @@ onMounted(async () => {
     pendingRequests: requests.filter(r => r.status === 'PENDING').length
   }
   chartData.value = overview
+  todayIngCount.value = ingBadge.count || 0
 })
 </script>
 
@@ -268,6 +283,22 @@ onMounted(async () => {
   transition: all 0.2s; opacity: 0; font-weight: 300;
 }
 .stat-card:hover .stat-arrow { opacity: 0.4; transform: translateX(4px); }
+
+/* 食材采购卡 */
+.ing-banner {
+  margin: 0 var(--space-lg) var(--space-md);
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border: 1.5px solid #6ee7b7; border-radius: var(--radius-lg);
+  padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; transition: all 0.2s; box-shadow: var(--shadow);
+}
+.ing-banner:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.ing-banner-left { display: flex; align-items: center; gap: 12px; }
+.ing-banner-icon { font-size: 28px; }
+.ing-banner-title { font-size: 14px; font-weight: 700; color: #065f46; }
+.ing-banner-sub { font-size: 12px; color: #047857; margin-top: 2px; }
+.ing-banner-sub strong { font-size: 16px; color: #059669; }
+.ing-banner-arrow { font-size: 13px; font-weight: 700; color: #059669; white-space: nowrap; }
 
 /* 快捷操作 */
 .quick-section { padding: 4px var(--space-lg); }

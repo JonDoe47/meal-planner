@@ -148,14 +148,13 @@
           <!-- 食材 -->
           <div class="field-item">
             <div class="field-label"><span class="label-icon">🧄</span> 食材清单（可选）</div>
-            <div class="ing-tags" v-if="ingredientList.length > 0">
-              <van-tag v-for="(ing, i) in ingredientList" :key="i" closeable type="primary" round @close="removeIngredient(i)" class="ing-tag">{{ ing }}</van-tag>
-            </div>
-            <div class="ing-input-row">
-              <van-field v-model="ingInput" placeholder="输入食材名称，回车添加" class="f-input ing-input" @keyup.enter="addIngredient" />
-              <van-button size="small" type="primary" plain @click="addIngredient" class="action-btn sm">添加</van-button>
-            </div>
-            <div class="field-tip">例如：猪肉、土豆、葱、盐，点餐后推送给管理员</div>
+            <textarea
+              v-model="ingText"
+              class="ing-textarea"
+              placeholder="每行一个食材，或用逗号分隔&#10;例如：猪肉, 土豆, 葱, 盐"
+              rows="4"
+            ></textarea>
+            <div class="field-tip">每行一个或逗号分隔，用户点餐后汇总给管理员</div>
           </div>
 
           <!-- 烹饪步骤 -->
@@ -314,15 +313,11 @@ const previewImage = ref('')
 const errors = ref({ name: false, categoryId: false })
 
 const form = ref({ name: '', categoryId: null, biliUrl: '', description: '' })
-const ingredientList = ref([])
-const ingInput = ref('')
+const ingText = ref('')
 
-function addIngredient() {
-  const val = ingInput.value.trim()
-  if (val && !ingredientList.value.includes(val)) ingredientList.value.push(val)
-  ingInput.value = ''
+function parseIngText() {
+  return [...new Set(ingText.value.split(/[\n,，]+/).map(s => s.trim()).filter(Boolean))]
 }
-function removeIngredient(i) { ingredientList.value.splice(i, 1) }
 
 const aiLoading = ref(false)
 const stepsLoading = ref(false)
@@ -447,7 +442,9 @@ async function analyzeWithAI() {
     if (res.dishName && !form.value.name.trim()) { form.value.name = res.dishName; errors.value.name = false }
     if (res.category && !form.value.categoryId) { const matched = categories.value.find(c => c.name === res.category); if (matched) { form.value.categoryId = matched.id; errors.value.categoryId = false } }
     if (Array.isArray(res.ingredients) && res.ingredients.length > 0) {
-      const existing = new Set(ingredientList.value); res.ingredients.forEach(ing => { if (ing && !existing.has(ing)) ingredientList.value.push(ing) })
+      const existing = parseIngText(); const existingSet = new Set(existing)
+      const merged = [...existing, ...res.ingredients.filter(ing => ing && !existingSet.has(ing))]
+      ingText.value = merged.join('\n')
       showToast({ type: 'success', message: `AI识别成功：${res.ingredients.length} 种食材${res.category ? `，分类：${res.category}` : ''}` })
     } else { showToast({ message: '未识别到食材', duration: 2500 }) }
   } catch (e) { showToast({ type: 'fail', message: e.message || 'AI识别失败' }) }
@@ -484,7 +481,7 @@ function validate() { errors.value.name = !form.value.name.trim(); errors.value.
 
 function openAdd() {
   editing.value = null; form.value = { name: '', categoryId: null, biliUrl: '', description: '' }
-  ingredientList.value = []; stepList.value = []; ingInput.value = ''; previewBvid.value = ''
+  ingText.value = ''; stepList.value = []; previewBvid.value = ''
   imageFile.value = null; biliImageUrl.value = ''; previewImage.value = ''; errors.value = { name: false, categoryId: false }
   bindingList.value = []; bindSelectedDish.value = null; newBindType.value = ''
   videoMode.value = 'bili'; videoFile.value = null; videoPreviewUrl.value = ''; existingVideoUrl.value = ''
@@ -494,9 +491,9 @@ function openAdd() {
 function openEdit(dish) {
   editing.value = dish
   form.value = { name: dish.name, categoryId: Number(dish.categoryId), biliUrl: dish.bvid ? `https://www.bilibili.com/video/${dish.bvid}` : '', description: dish.description || '' }
-  try { ingredientList.value = dish.ingredients ? JSON.parse(dish.ingredients) : [] } catch { ingredientList.value = [] }
+  try { ingText.value = dish.ingredients ? JSON.parse(dish.ingredients).join('\n') : '' } catch { ingText.value = '' }
   try { stepList.value = dish.cookingSteps ? JSON.parse(dish.cookingSteps) : [] } catch { stepList.value = [] }
-  ingInput.value = ''; previewBvid.value = ''; imageFile.value = null; biliImageUrl.value = dish.imageUrl || ''; previewImage.value = dish.imageUrl || ''
+  previewBvid.value = ''; imageFile.value = null; biliImageUrl.value = dish.imageUrl || ''; previewImage.value = dish.imageUrl || ''
   errors.value = { name: false, categoryId: false }; bindingList.value = []; bindSelectedDish.value = null; newBindType.value = ''
   if (dish.videoUrl) {
     videoMode.value = 'local'; existingVideoUrl.value = dish.videoUrl; videoPreviewUrl.value = dish.videoUrl; videoFile.value = null
@@ -521,7 +518,7 @@ async function saveDish() {
     fd.append('name', form.value.name.trim()); fd.append('categoryId', form.value.categoryId)
     fd.append('bvid', videoMode.value === 'local' ? '' : (parsedBvid.value || ''))
     fd.append('description', form.value.description || '')
-    fd.append('ingredients', ingredientList.value.length ? JSON.stringify(ingredientList.value) : '')
+    fd.append('ingredients', parseIngText().length ? JSON.stringify(parseIngText()) : '')
     fd.append('cookingSteps', stepList.value.length ? JSON.stringify(stepList.value) : '')
     if (imageFile.value) fd.append('image', imageFile.value)
     else if (biliImageUrl.value) fd.append('existingImageUrl', biliImageUrl.value)
@@ -649,10 +646,14 @@ onMounted(async () => { categories.value = await categoryApi.list(); await loadD
 .video-close:active { background: #f1f5f9; }
 
 /* 食材 & 步骤 */
-.ing-tags { display: flex; flex-wrap: wrap; min-height: 8px; margin-bottom: 8px; gap: 6px; }
-.ing-tag { margin: 0 !important; }
-.ing-input-row { display: flex; align-items: center; }
-.ing-input { flex: 1; }
+.ing-textarea {
+  width: 100%; box-sizing: border-box;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; font-size: 14px; color: var(--text1);
+  resize: vertical; font-family: inherit; line-height: 1.6;
+  outline: none; background: white; transition: all 0.2s;
+}
+.ing-textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
 .field-tip { font-size: 11px; color: var(--text3); margin-top: 8px; line-height: 1.45; }
 .steps-preview { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 .step-item-edit {
