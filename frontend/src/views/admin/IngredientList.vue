@@ -99,7 +99,7 @@ async function load() {
 function toggleCheck(name) { const s = new Set(checkedSet.value); s.has(name) ? s.delete(name) : s.add(name); checkedSet.value = s }
 
 function copyList() {
-  navigator.clipboard.writeText(ingredients.value.map(i => `${checkedSet.has(i.name)?'[✓]':'[ ]'} ${i.name}  (${i.dishes.join('、')})`).join('\n'))
+  navigator.clipboard.writeText(ingredients.value.map(i => `${checkedSet.value.has(i.name)?'[✓]':'[ ]'} ${i.name}  (${i.dishes.join('、')})`).join('\n'))
   .then(() => showToast({ type: 'success', message: '已复制' }))
 }
 load()

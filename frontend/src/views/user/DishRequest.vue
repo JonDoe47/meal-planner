@@ -25,7 +25,10 @@
       <div v-for="req in myList" :key="req.id" class="req-card" :class="'status-' + req.status.toLowerCase()">
         <div class="req-top">
           <div class="req-name">{{ req.dishName }}</div>
-          <div class="req-status">{{ statusLabel(req.status) }}</div>
+          <div class="req-top-right">
+            <div class="req-status">{{ statusLabel(req.status) }}</div>
+            <van-button v-if="req.status === 'PENDING'" size="mini" type="danger" plain round @click="deleteReq(req.id)" class="req-del-btn">撤回</van-button>
+          </div>
         </div>
         <div class="req-desc" v-if="req.description">{{ req.description }}</div>
         <div class="req-note" v-if="req.adminNote">
@@ -42,7 +45,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { showToast } from 'vant'
+import { showToast, showConfirmDialog } from 'vant'
 import { dishRequestApi } from '../../api'
 
 const form = ref({ dishName: '', description: '' })
@@ -67,6 +70,15 @@ async function submit() {
     form.value = { dishName: '', description: '' }; await load()
   } catch (e) { showToast({ type: 'fail', message: e.message || '提交失败' }) }
   finally { submitting.value = false }
+}
+
+async function deleteReq(id) {
+  try {
+    await showConfirmDialog({ title: '撤回需求', message: '确定撤回这条求菜需求吗？' })
+    await dishRequestApi.delete(id)
+    showToast({ type: 'success', message: '已撤回' })
+    await load()
+  } catch {}
 }
 
 async function load() { myList.value = await dishRequestApi.list() }
@@ -112,12 +124,14 @@ onMounted(load)
 .req-card.status-pending { border-left-color: #f59e0b; background: linear-gradient(135deg, #fffbeb, #fef3c7); }
 .req-card.status-approved { border-left-color: #22c55e; background: linear-gradient(135deg, #f0fdf4, #dcfce7); }
 .req-card.status-rejected { border-left-color: #ef4444; background: linear-gradient(135deg, #fef2f2, #fee2e2); }
-.req-top { display: flex; justify-content: space-between; align-items: center; }
-.req-name { font-size: 16px; font-weight: 800; color: var(--text1); letter-spacing: -0.2px; }
+.req-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.req-name { font-size: 16px; font-weight: 800; color: var(--text1); letter-spacing: -0.2px; flex: 1; min-width: 0; }
+.req-top-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .req-status {
   font-size: 12px; font-weight: 700; padding: 3px 12px; border-radius: var(--radius-full);
-  white-space: nowrap; flex-shrink: 0; letter-spacing: 0.5px;
+  white-space: nowrap; letter-spacing: 0.5px;
 }
+.req-del-btn { height: 24px !important; font-size: 11px !important; }
 .req-desc { font-size: 13px; color: var(--text2); line-height: 1.55; word-break: break-word; }
 .req-note {
   display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--primary);

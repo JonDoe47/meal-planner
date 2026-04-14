@@ -48,7 +48,7 @@
       </div>
       <div class="fav-list">
         <div v-for="v in favVideos" :key="v.bvid" class="fav-item" @click="v.selected = !v.selected">
-          <img :src="v.cover" class="fav-cover" />
+          <img :src="v.cover ? `/api/bilibili/proxy-cover?url=${encodeURIComponent(v.cover)}` : ''" class="fav-cover" />
           <div class="fav-info">
             <div class="fav-title">{{ v.title }}</div>
             <div class="fav-bvid">{{ v.bvid }}</div>
@@ -104,7 +104,7 @@
                 {{ r.categoryId ? (categories.find(c=>c.id===r.categoryId)?.name || '选择分类') : '必须选择分类' }}
                 <van-icon name="arrow-down" size="12" color="#94a3b8" />
               </div>
-              <span class="result-ing-count">{{ r.ingredients?.length || 0 }} 种食材</span>
+              <span class="result-ing-count">{{ r.ingredients?.length || 0 }} 种食材 · {{ r.cookingSteps?.length || 0 }} 步做法</span>
             </div>
           </div>
         </div>
@@ -260,6 +260,7 @@ async function startAnalyze() {
         category: res.category || '',
         categoryId,
         ingredients: res.ingredients || [],
+        cookingSteps: res.cookingSteps || [],
         isDuplicate,
         failed: false,
         selected: !isDuplicate
@@ -272,7 +273,8 @@ async function startAnalyze() {
         dishName: video.title,
         failed: true,
         selected: false,
-        ingredients: []
+        ingredients: [],
+        cookingSteps: []
       })
     }
     doneCount.value++
@@ -327,7 +329,8 @@ async function batchSave() {
         categoryId: r.categoryId,
         bvid: r.bvid,
         imageUrl: r.cover || null,
-        ingredients: r.ingredients
+        ingredients: r.ingredients,
+        cookingSteps: r.cookingSteps
       }])
       saveResults.value.push({ name: r.dishName, success: true })
     } catch (e) {

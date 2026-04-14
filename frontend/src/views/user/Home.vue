@@ -14,7 +14,11 @@
     <!-- 本周日历 -->
     <div class="week-card">
       <div class="week-header">
-        <span class="week-title">本周餐单</span>
+        <div class="week-nav">
+          <div class="week-nav-btn" @click="weekOffset--">‹</div>
+          <span class="week-title">{{ weekTitle }}</span>
+          <div class="week-nav-btn" @click="weekOffset++">›</div>
+        </div>
         <van-button size="mini" type="primary" plain @click="$router.push('/order')">去点餐</van-button>
       </div>
       <div class="week-days">
@@ -57,7 +61,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { mealApi } from '../../api'
 
@@ -66,27 +70,43 @@ const plans = ref([])
 const today = new Date()
 const todayDate = today.toISOString().split('T')[0]
 const selectedDate = ref(todayDate)
+const weekOffset = ref(0)
 
 const todayText = computed(() => today.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }))
 
-function getWeekDays() {
+const weekDays = computed(() => {
   const weekLabels = ['日','一','二','三','四','五','六']
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today)
-    d.setDate(today.getDate() - today.getDay() + i)
+    d.setDate(today.getDate() - today.getDay() + i + weekOffset.value * 7)
     const dateStr = d.toISOString().split('T')[0]
     return { date: dateStr, label: '周' + weekLabels[d.getDay()], num: d.getDate(), isToday: dateStr === todayDate }
   })
-}
+})
 
-const weekDays = getWeekDays()
+const weekTitle = computed(() => {
+  if (weekOffset.value === 0) return '本周餐单'
+  if (weekOffset.value === -1) return '上周餐单'
+  if (weekOffset.value === 1) return '下周餐单'
+  return weekOffset.value > 0 ? `后${weekOffset.value}周` : `前${-weekOffset.value}周`
+})
+
 const selectedDatePlans = computed(() => plans.value.filter(p => p.date === selectedDate.value))
 function dayHasMeal(date) { return plans.value.some(p => p.date === date) }
 function mealTypeLabel(type) { return { BREAKFAST: '早餐', LUNCH: '午餐', DINNER: '晚餐' }[type] || type }
 
-onMounted(async () => {
-  plans.value = await mealApi.list({ startDate: weekDays[0].date, endDate: weekDays[6].date })
+async function loadWeekPlans() {
+  plans.value = await mealApi.list({ startDate: weekDays.value[0].date, endDate: weekDays.value[6].date })
+}
+
+watch(weekOffset, () => {
+  if (!weekDays.value.some(d => d.date === selectedDate.value)) {
+    selectedDate.value = weekOffset.value === 0 ? todayDate : weekDays.value[0].date
+  }
+  loadWeekPlans()
 })
+
+onMounted(loadWeekPlans)
 </script>
 
 <style scoped>
@@ -107,7 +127,15 @@ onMounted(async () => {
   box-shadow: var(--shadow-md); position: relative; z-index: 1;
 }
 .week-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); }
+.week-nav { display: flex; align-items: center; gap: 8px; }
 .week-title { font-weight: 700; font-size: var(--text-base); color: var(--text1); }
+.week-nav-btn {
+  width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 17px; color: var(--primary); cursor: pointer; background: var(--primary-light);
+  font-weight: 700; line-height: 1; transition: all 0.2s; user-select: none;
+}
+.week-nav-btn:hover { background: var(--primary-mid); }
+.week-nav-btn:active { transform: scale(0.88); }
 .week-days { display: flex; gap: 4px; }
 .day-item {
   flex: 1; text-align: center; padding: 8px 2px;

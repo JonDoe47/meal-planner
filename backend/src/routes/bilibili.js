@@ -87,7 +87,7 @@ router.post('/analyze', authMiddleware, async (req, res) => {
           url: videoUrl,
           promptConfig: {
             outputLanguage: 'zh',
-            customPrompt: `这是一个烹饪视频。请提取菜品名称、所需食材${catHint}，严格按以下JSON格式返回，不含任何其他文字或markdown：{"dishName":"红烧肉","category":"家常菜","ingredients":["猪五花肉","生姜","大葱","料酒","生抽","老抽","冰糖"]}。菜品名称去掉"做法""教程""怎么做""家常""简单"等修饰词，只保留核心菜名；食材只写名称不写用量，去重。`
+            customPrompt: `这是一个烹饪视频。请提取菜品名称、所需食材、分步做法${catHint}，严格按以下JSON格式返回，不含任何其他文字或markdown：{"dishName":"红烧肉","category":"家常菜","ingredients":["猪五花肉","生姜","大葱","料酒","生抽","老抽","冰糖"],"cookingSteps":["步骤1：热锅冷油，下姜葱爆香","步骤2：加入五花肉翻炒至微焦出油"]}。菜品名称去掉"做法""教程""怎么做""家常""简单"等修饰词，只保留核心菜名；食材只写名称不写用量，去重；做法4-7步，每步以"步骤N："开头，50字以内。`
           }
         }),
         signal: AbortSignal.timeout(120000)
@@ -118,20 +118,47 @@ router.post('/analyze', authMiddleware, async (req, res) => {
       }
     } catch { /* 封面获取失败不影响主流程 */ }
 
-    let parsed = { dishName: '', category: '', ingredients: [] }
+    let parsed = { dishName: '', category: '', ingredients: [], cookingSteps: [] }
     try {
-      const jsonMatch = rawSummary.match(/\{[\s\S]*?\}/)
+      const jsonMatch = rawSummary.match(/\{[\s\S]*\}/)
       if (jsonMatch) parsed = JSON.parse(jsonMatch[0])
     } catch { parsed.dishName = rawTitle }
 
     if (typeof parsed.dishName !== 'string' || !parsed.dishName) parsed.dishName = rawTitle
     if (!Array.isArray(parsed.ingredients)) parsed.ingredients = []
     if (typeof parsed.category !== 'string') parsed.category = ''
+    if (!Array.isArray(parsed.cookingSteps)) parsed.cookingSteps = []
 
-    res.json({ dishName: parsed.dishName, category: parsed.category, ingredients: parsed.ingredients, rawTitle, imageUrl })
+    res.json({ dishName: parsed.dishName, category: parsed.category, ingredients: parsed.ingredients, cookingSteps: parsed.cookingSteps, rawTitle, imageUrl })
   } catch (e) {
     if (e.name === 'TimeoutError') return res.status(503).json({ message: 'BiBiGPT 处理超时（视频较长时需要更多时间），请稍后重试' })
     res.status(500).json({ message: 'AI识别失败: ' + e.message })
+  }
+})
+
+// 代理 B站图片（带 Referer），解决 CDN 防盗链问题
+router.get('/proxy-cover', authMiddleware, async (req, res) => {
+  const { url } = req.query
+  if (!url) return res.status(400).end()
+  // 只允许代理 B站 CDN 域名
+  if (!url.includes('hdslb.com') && !url.includes('bilibili.com')) {
+    return res.status(403).json({ message: '仅支持代理B站图片' })
+  }
+  try {
+    const imgRes = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://www.bilibili.com'
+      }
+    })
+    if (!imgRes.ok) return res.status(imgRes.status).end()
+    const buffer = await imgRes.arrayBuffer()
+    const contentType = imgRes.headers.get('content-type') || 'image/jpeg'
+    res.set('Content-Type', contentType)
+    res.set('Cache-Control', 'public, max-age=86400')
+    res.send(Buffer.from(buffer))
+  } catch (e) {
+    res.status(500).end()
   }
 })
 

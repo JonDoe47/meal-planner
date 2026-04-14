@@ -2,6 +2,14 @@
   <div class="dishes-page">
     <div class="page-header">
       <div class="header-title">菜品浏览</div>
+      <van-search
+        v-model="searchText"
+        placeholder="搜索菜名..."
+        shape="round"
+        class="header-search"
+        @input="onSearch"
+        @clear="onSearch"
+      />
     </div>
 
     <van-tabs v-model:active="activeCategory" color="#2563eb" shrink sticky offset-top="54" class="cat-tabs" @change="onCategoryChange">
@@ -176,6 +184,7 @@ const auth = useAuthStore()
 const categories = ref([])
 const dishes = ref([])
 const activeCategory = ref('all')
+const searchText = ref('')
 const showDetail = ref(false)
 const currentDish = ref(null)
 const loading = ref(false)
@@ -195,7 +204,14 @@ const currentAvgRating = computed(() => {
   return Math.round(avg * 10) / 10
 })
 
-const filteredDishes = computed(() => dishes.value)
+const filteredDishes = computed(() => {
+  const keyword = searchText.value.trim().toLowerCase()
+  if (!keyword) return dishes.value
+  return dishes.value.filter(d =>
+    d.name.toLowerCase().includes(keyword) ||
+    d.description?.toLowerCase().includes(keyword)
+  )
+})
 
 async function openDish(dish) {
   currentDish.value = dish
@@ -236,7 +252,12 @@ async function loadDishes() {
 
 function onCategoryChange(name) {
   activeCategory.value = name
+  searchText.value = ''
   loadDishes()
+}
+
+function onSearch() {
+  // client-side filtering via filteredDishes computed
 }
 
 async function submitRating() {
@@ -297,9 +318,17 @@ onMounted(async () => {
 .dishes-page { padding-bottom: 60px; background: var(--bg); min-height: 100vh; }
 .page-header {
   background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
-  padding: var(--space-lg); color: white;
+  padding: var(--space-lg) var(--space-lg) var(--space-sm); color: white;
 }
-.header-title { font-size: 18px; font-weight: 800; }
+.header-title { font-size: 18px; font-weight: 800; margin-bottom: var(--space-sm); }
+.header-search {
+  --van-search-background: transparent;
+  --van-search-content-background: rgba(255,255,255,0.18);
+  --van-search-input-color: white;
+  --van-search-placeholder-text-color: rgba(255,255,255,0.65);
+  --van-search-left-icon-color: rgba(255,255,255,0.7);
+  padding: 0;
+}
 
 .dish-list { padding: var(--space-md); display: flex; flex-direction: column; gap: 10px; }
 .dish-card {

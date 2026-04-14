@@ -65,7 +65,7 @@
         <van-field v-model="addForm.name" label="姓名" placeholder="显示名称（1-20字符）" :error-message="addErrors.name" />
         <van-field v-model="addForm.username" label="账号" placeholder="4-20位字母/数字/下划线" :error-message="addErrors.username" />
         <van-field v-model="addForm.password" type="password" label="密码" placeholder="8-32位，须含字母和数字" :error-message="addErrors.password" />
-        <van-field label="角色" is-link readonly :model-value="addForm.role === 'ADMIN' ? '管理员' : '普通成员'" @click="showRolePicker = true" />
+        <van-field label="角色" is-link readonly :model-value="{ ADMIN: '管理员', VIP: 'VIP成员', USER: '普通成员' }[addForm.role] || '普通成员'" @click="showRolePicker = true" />
       </div>
     </van-dialog>
 
