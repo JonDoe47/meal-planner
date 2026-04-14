@@ -62,6 +62,7 @@ export const userApi = {
   pending: () => api.get('/users/pending'),
   create: (data) => api.post('/users', data),
   update: (id, data) => api.put(`/users/${id}`, data),
+  setRole: (id, role) => api.put(`/users/${id}/set-role`, { role }),
   approve: (id) => api.put(`/users/${id}/approve`),
   reject: (id) => api.put(`/users/${id}/reject`),
   delete: (id) => api.delete(`/users/${id}`)

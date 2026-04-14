@@ -40,16 +40,20 @@
         <van-tag type="primary" plain round size="small">{{ users.length }}人</van-tag>
       </div>
       <transition-group name="user-card-anim" tag="div" class="user-list">
-        <div v-for="user in users" :key="user.id" class="user-item" :class="{ 'self-item': user.id === currentUser?.id }">
-          <div class="user-avatar">{{ user.name.charAt(0) }}</div>
+        <div v-for="user in users" :key="user.id" class="user-item" :class="{ 'self-item': user.id === currentUser?.id, 'vip-item': user.role === 'VIP' }">
+          <div class="user-avatar" :class="{ 'vip-avatar': user.role === 'VIP' }">{{ user.name.charAt(0) }}</div>
           <div class="user-info">
             <div class="user-name">{{ user.name }}
-              <van-tag v-if="user.role === 'ADMIN'" type="primary" size="mini" class="admin-badge">管理员</van-tag>
+              <span v-if="user.role === 'VIP'" class="vip-badge">👑 VIP</span>
+              <van-tag v-else-if="user.role === 'ADMIN'" type="primary" size="mini" class="admin-badge">管理员</van-tag>
             </div>
-            <div class="user-meta">@{{ user.username }} · {{ user.role === 'ADMIN' ? '管理员' : '普通成员' }}</div>
+            <div class="user-meta">@{{ user.username }} · {{ { ADMIN: '管理员', VIP: 'VIP成员', USER: '普通成员' }[user.role] || '普通成员' }}</div>
           </div>
           <div class="user-actions">
             <van-button size="mini" plain @click="openEdit(user)">编辑</van-button>
+            <van-button v-if="user.id !== currentUser?.id && user.role !== 'ADMIN'" size="mini" :class="user.role === 'VIP' ? 'btn-unvip' : 'btn-vip'" plain @click="toggleVip(user)">
+              {{ user.role === 'VIP' ? '取消VIP' : '设为VIP' }}
+            </van-button>
             <van-button v-if="user.id !== currentUser?.id" size="mini" type="danger" plain @click="deleteUser(user.id)">删除</van-button>
           </div>
         </div>
@@ -74,7 +78,7 @@
     </van-dialog>
 
     <van-popup v-model:show="showRolePicker" position="bottom" round>
-      <van-picker :columns="[{ text: '普通成员', value: 'USER' }, { text: '管理员', value: 'ADMIN' }]" @confirm="v => { addForm.role = v.selectedOptions[0].value; showRolePicker = false }" @cancel="showRolePicker = false" />
+      <van-picker :columns="[{ text: '普通成员', value: 'USER' }, { text: 'VIP成员', value: 'VIP' }, { text: '管理员', value: 'ADMIN' }]" @confirm="v => { addForm.role = v.selectedOptions[0].value; showRolePicker = false }" @cancel="showRolePicker = false" />
     </van-popup>
   </div>
 </template>
@@ -145,6 +149,15 @@ async function approve(id) { try { await userApi.approve(id); showToast({ type: 
 async function reject(id) { await showConfirmDialog({ title: '确认拒绝', message: '确定拒绝该申请？' }); try { await userApi.reject(id); showToast({ type: 'success', message: '已拒绝' }); loadAll() } catch (e) {} }
 async function addUser() { try { await userApi.create(addForm.value); showToast({ type: 'success', message: '创建成功' }); loadAll(); showAddForm.value = false } catch (e) { showToast({ type: 'fail', message: e.message || '用户名已存在' }) } }
 async function deleteUser(id) { await showConfirmDialog({ title: '确认', message: '确定删除该成员？' }); try { await userApi.delete(id); showToast({ type: 'success', message: '删除成功' }); loadAll() } catch {} }
+async function toggleVip(user) {
+  const newRole = user.role === 'VIP' ? 'USER' : 'VIP'
+  const label = newRole === 'VIP' ? '设为VIP' : '取消VIP'
+  try {
+    await userApi.setRole(user.id, newRole)
+    showToast({ type: 'success', message: `已${label}` })
+    loadAll()
+  } catch (e) { showToast({ type: 'fail', message: e.message || '操作失败' }) }
+}
 
 async function loadAll() { const [all, pending] = await Promise.all([userApi.list(), userApi.pending()]); users.value = all; pendingUsers.value = pending }
 onMounted(loadAll)
@@ -183,6 +196,7 @@ onMounted(loadAll)
 .user-item:hover { border-color: var(--primary-mid); box-shadow: var(--shadow-md); transform: translateX(4px); }
 .user-item.self-item { background: linear-gradient(135deg, #eff6ff, #f0f9ff); border-left-color: var(--primary); }
 .user-item.pending-item { border-left-color: var(--warm-amber); background: linear-gradient(135deg, #fffbeb, #fefce8); }
+.user-item.vip-item { background: linear-gradient(135deg, #fffbeb, #fef9e7); border-left-color: #f59e0b; }
 
 .user-avatar {
   width: 46px; height: 46px; border-radius: 50%;
@@ -192,9 +206,13 @@ onMounted(loadAll)
   flex-shrink: 0; box-shadow: 0 3px 10px rgba(37,99,235,0.2);
 }
 .pending-avatar { background: linear-gradient(135deg, #f97316, #fbbf24); box-shadow: 0 3px 10px rgba(249,115,22,0.2); }
+.vip-avatar { background: linear-gradient(135deg, #f59e0b, #fbbf24); box-shadow: 0 3px 10px rgba(245,158,11,0.3); }
 .user-info { flex: 1; min-width: 0; }
 .user-name { font-weight: 700; font-size: 15px; color: var(--text1); display: flex; align-items: center; gap: 6px; letter-spacing: -0.2px; }
 .admin-badge { transform: scale(0.85); font-size: 11px !important; }
+.vip-badge { font-size: 11px; font-weight: 800; color: #92400e; background: linear-gradient(135deg, #fef3c7, #fde68a); padding: 1px 7px; border-radius: 10px; border: 1px solid #fcd34d; }
+.btn-vip { color: #b45309 !important; border-color: #fcd34d !important; }
+.btn-unvip { color: #64748b !important; border-color: #e2e8f0 !important; }
 .user-meta { font-size: 12px; color: var(--text3); margin-top: 3px; font-weight: 500; }
 .user-actions { display: flex; gap: 6px; }
 

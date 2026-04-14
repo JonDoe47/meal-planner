@@ -41,11 +41,21 @@ router.get('/', authMiddleware, async (req, res) => {
   if (startDate && endDate) {
     where.date = { gte: startDate, lte: endDate }
   }
-  const plans = await prisma.mealPlan.findMany({
+  let plans = await prisma.mealPlan.findMany({
     where,
-    include: { items: { include: { dish: { include: { category: true } } } }, user: { select: { id: true, name: true } } },
+    include: { items: { include: { dish: { include: { category: true } } } }, user: { select: { id: true, name: true, role: true } } },
     orderBy: [{ date: 'asc' }, { mealType: 'asc' }]
   })
+  // 同一天同餐次内，VIP 用户的记录优先展示
+  if (req.user.role === 'ADMIN') {
+    plans.sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1
+      if (a.mealType !== b.mealType) return a.mealType < b.mealType ? -1 : 1
+      if (a.user.role === 'VIP' && b.user.role !== 'VIP') return -1
+      if (b.user.role === 'VIP' && a.user.role !== 'VIP') return 1
+      return 0
+    })
+  }
   res.json(plans)
 })
 

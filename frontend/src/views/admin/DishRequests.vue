@@ -17,12 +17,16 @@
       </div>
 
       <transition-group name="req-anim" tag="div">
-      <div v-for="req in filteredList" :key="req.id" class="req-card">
+      <div v-for="req in filteredList" :key="req.id" class="req-card" :class="{ 'req-vip': req.user.role === 'VIP' }">
         <div class="req-top">
           <div class="req-info">
             <div class="req-name">{{ req.dishName }}</div>
             <div class="req-meta">
-              <span class="req-user"><van-icon name="contact" size="12" /> {{ req.user.name }}</span>
+              <span class="req-user" :class="{ 'req-user-vip': req.user.role === 'VIP' }">
+                <van-icon name="contact" size="12" />
+                {{ req.user.name }}
+                <span v-if="req.user.role === 'VIP'" class="vip-crown">👑</span>
+              </span>
               <span class="req-time">{{ formatTime(req.createdAt) }}</span>
             </div>
             <div class="req-desc" v-if="req.description">{{ req.description }}</div>
@@ -104,11 +108,15 @@ onMounted(load)
   border-left: 3px solid transparent; transition: all 0.2s;
 }
 .req-card:hover { border-color: var(--primary-mid); box-shadow: var(--shadow-md); }
+.req-card.req-vip { background: linear-gradient(135deg, #fffbeb, #fef9e7); border-left-color: #f59e0b; }
+.req-card.req-vip:hover { border-left-color: #d97706; box-shadow: 0 4px 16px rgba(245,158,11,0.2); }
 .req-top { display: flex; justify-content: space-between; align-items: flex-start; }
 .req-info { flex: 1; min-width: 0; }
 .req-name { font-size: 16px; font-weight: 800; color: var(--text1); margin-bottom: 6px; letter-spacing: -0.3px; }
 .req-meta { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; }
 .req-user { font-size: 12px; color: var(--primary); font-weight: 600; display: flex; align-items: center; gap: 4px; background: #eff6ff; padding: 2px 8px; border-radius: 10px; }
+.req-user-vip { color: #92400e !important; background: linear-gradient(135deg, #fef3c7, #fde68a) !important; }
+.vip-crown { font-size: 12px; }
 .req-time { font-size: 11px; color: var(--text3); font-weight: 500; }
 .req-desc { font-size: 13px; color: var(--text2); line-height: 1.55; word-break: break-word; }
 

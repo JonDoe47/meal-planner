@@ -24,9 +24,19 @@ router.get('/', authMiddleware, async (req, res) => {
   const where = req.user.role === 'ADMIN' ? {} : { userId: req.user.id }
   const requests = await prisma.dishRequest.findMany({
     where,
-    include: { user: { select: { id: true, name: true } } },
+    include: { user: { select: { id: true, name: true, role: true } } },
     orderBy: { createdAt: 'desc' }
   })
+  // VIP 待处理需求优先展示
+  if (req.user.role === 'ADMIN') {
+    requests.sort((a, b) => {
+      const aVipPending = a.status === 'PENDING' && a.user.role === 'VIP'
+      const bVipPending = b.status === 'PENDING' && b.user.role === 'VIP'
+      if (aVipPending && !bVipPending) return -1
+      if (bVipPending && !aVipPending) return 1
+      return new Date(b.createdAt) - new Date(a.createdAt)
+    })
+  }
   res.json(requests)
 })
 

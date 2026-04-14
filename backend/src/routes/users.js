@@ -41,7 +41,7 @@ router.post('/', adminMiddleware, async (req, res) => {
   }
 
   // 角色白名单
-  const allowedRoles = ['USER', 'ADMIN']
+  const allowedRoles = ['USER', 'VIP', 'ADMIN']
   const finalRole = allowedRoles.includes(role) ? role : 'USER'
 
   try {
@@ -118,6 +118,20 @@ router.delete('/:id', adminMiddleware, async (req, res) => {
     res.json({ message: '删除成功' })
   } catch (e) {
     res.status(500).json({ message: '删除失败' })
+  }
+})
+
+// 设置角色（管理员，支持 USER / VIP / ADMIN）
+router.put('/:id/set-role', adminMiddleware, async (req, res) => {
+  const { role } = req.body
+  const allowedRoles = ['USER', 'VIP', 'ADMIN']
+  if (!allowedRoles.includes(role)) return res.status(400).json({ message: '无效角色' })
+  if (Number(req.params.id) === req.user.id) return res.status(400).json({ message: '不能修改自己的角色' })
+  try {
+    await prisma.user.update({ where: { id: Number(req.params.id) }, data: { role } })
+    res.json({ message: '角色已更新' })
+  } catch (e) {
+    res.status(500).json({ message: '操作失败: ' + e.message })
   }
 })
 

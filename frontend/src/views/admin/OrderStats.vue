@@ -37,10 +37,12 @@
       <div v-for="group in groupedPlans" :key="group.date" class="date-group">
         <div class="date-label"><span class="dot"></span>{{ group.date }}</div>
         <transition-group tag="div" :key="'cards'+group.date" name="plan-card-anim">
-          <div v-for="plan in group.plans" :key="plan.id" class="plan-card">
+          <div v-for="plan in group.plans" :key="plan.id" class="plan-card" :class="{ 'plan-vip': plan.user.role === 'VIP' }">
             <div class="plan-header">
               <div class="meal-badge" :class="plan.mealType.toLowerCase()">{{ mealTypeLabel(plan.mealType) }}</div>
-              <van-tag type="warning" plain size="small">{{ plan.user.name }}</van-tag>
+              <span class="plan-user-tag" :class="{ 'plan-user-vip': plan.user.role === 'VIP' }">
+                <span v-if="plan.user.role === 'VIP'">👑 </span>{{ plan.user.name }}
+              </span>
             </div>
             <div class="plan-dishes">
               <van-tag v-for="item in plan.items" :key="item.id" type="primary" plain class="plan-dish-tag">{{ item.dish.name }}</van-tag>
@@ -114,6 +116,9 @@ onMounted(async () => { users.value = await userApi.list(); await loadPlans() })
 .dot { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg, #2563eb, #60a5fa); flex-shrink: 0; }
 .plan-card { background: white; border-radius: var(--radius-md); padding: 14px; margin-bottom: 8px; box-shadow: var(--shadow); transition: all 0.2s; border-left: 3px solid transparent; }
 .plan-card:hover { border-color: #bfdbfe; box-shadow: var(--shadow-md); }
+.plan-card.plan-vip { background: linear-gradient(135deg, #fffbeb, #fef9e7); border-left-color: #f59e0b; }
+.plan-user-tag { font-size: 12px; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 3px 10px; border-radius: 10px; white-space: nowrap; }
+.plan-user-vip { color: #92400e !important; background: linear-gradient(135deg, #fef3c7, #fde68a) !important; }
 .plan-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 6px; }
 .meal-badge { padding: 5px 14px; border-radius: var(--radius-full); font-size: 12px; font-weight: 700; letter-spacing: 0.5px; white-space: nowrap; }
 .plan-dishes { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
