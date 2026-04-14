@@ -92,15 +92,16 @@
       </div>
 
       <div class="result-list">
-        <div v-for="(r, i) in okResults" :key="i" class="result-item" :class="{ 'result-selected': r.selected }">
+        <div v-for="(r, i) in okResults" :key="i" class="result-item" :class="{ 'result-selected': r.selected, 'result-no-cat': r.selected && !r.categoryId }">
           <van-checkbox v-model="r.selected" style="flex-shrink:0" />
           <img v-if="r.cover" :src="r.cover" class="result-cover" />
           <div v-else class="result-no-img">🍽️</div>
           <div class="result-info">
             <van-field v-model="r.dishName" class="result-name-field" placeholder="菜品名称" />
             <div class="result-cat-row">
-              <div class="result-cat-select" @click="openCatPicker(i)">
-                {{ r.categoryId ? (categories.find(c=>c.id===r.categoryId)?.name || '选择分类') : '选择分类' }}
+              <div class="result-cat-select" :class="{ 'cat-missing': r.selected && !r.categoryId }" @click="openCatPicker(i)">
+                <van-icon v-if="r.selected && !r.categoryId" name="warning-o" size="12" color="#ef4444" style="flex-shrink:0" />
+                {{ r.categoryId ? (categories.find(c=>c.id===r.categoryId)?.name || '选择分类') : '必须选择分类' }}
                 <van-icon name="arrow-down" size="12" color="#94a3b8" />
               </div>
               <span class="result-ing-count">{{ r.ingredients?.length || 0 }} 种食材</span>
@@ -131,7 +132,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { showToast } from 'vant'
+import { showToast, showConfirmDialog } from 'vant'
 import { biliApi, dishApi, categoryApi } from '../../api'
 
 const step = ref(1)
@@ -277,7 +278,13 @@ async function batchSave() {
 
   const noCategory = toSave.filter(r => !r.categoryId)
   if (noCategory.length > 0) {
-    showToast({ type: 'fail', message: `请为"${noCategory[0].dishName}"选择分类` })
+    await showConfirmDialog({
+      title: `${noCategory.length} 道菜未选分类`,
+      message: noCategory.map(r => `· ${r.dishName}`).join('\n') + '\n\n请点击每道菜的「必须选择分类」按钮完成选择',
+      showCancelButton: false,
+      confirmButtonText: '知道了',
+      confirmButtonColor: '#2563eb'
+    }).catch(() => {})
     return
   }
 
@@ -367,6 +374,8 @@ onMounted(async () => {
 .result-name-field { border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 0; font-size: 14px; }
 .result-cat-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .result-cat-select { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+.result-cat-select.cat-missing { color: #ef4444; border-color: #fca5a5; background: #fff5f5; font-weight: 600; }
+.result-item.result-no-cat { border: 1.5px solid #fca5a5; }
 .result-ing-count { font-size: 11px; color: #94a3b8; }
 
 .confirm-footer { display: flex; padding: 16px; position: sticky; bottom: 60px; background: var(--bg); }
