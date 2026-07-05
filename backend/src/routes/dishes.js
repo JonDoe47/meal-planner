@@ -1,39 +1,84 @@
 const router = require('express').Router()
-const { PrismaClient } = require('@prisma/client')
 const { authMiddleware, adminMiddleware } = require('../middleware/auth')
+const prisma = require('../lib/prisma')
 const multer = require('multer')
 const path = require('path')
 const fs = require('fs')
-
-const prisma = new PrismaClient()
+const crypto = require('crypto')
 
 const uploadDir = path.join(__dirname, '../../uploads')
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
 
 const storage = multer.diskStorage({
   destination: uploadDir,
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.fieldname + path.extname(file.originalname))
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomUUID()}${path.extname(file.originalname).toLowerCase()}`)
 })
-const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 } })
+
+const allowedUploadTypes = {
+  image: {
+    mime: /^image\/(jpeg|png|webp|gif)$/,
+    ext: new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif'])
+  },
+  video: {
+    mime: /^video\/(mp4|quicktime|webm|x-msvideo)$/,
+    ext: new Set(['.mp4', '.mov', '.webm', '.avi'])
+  }
+}
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 500 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const rule = allowedUploadTypes[file.fieldname]
+    const ext = path.extname(file.originalname).toLowerCase()
+    if (!rule || !rule.mime.test(file.mimetype) || !rule.ext.has(ext)) {
+      return cb(new Error('Unsupported upload file type'))
+    }
+    cb(null, true)
+  }
+})
 const uploadFields = upload.fields([
   { name: 'image', maxCount: 1 },
   { name: 'video', maxCount: 1 }
 ])
+
+function handleDishUpload(req, res, next) {
+  uploadFields(req, res, err => {
+    if (!err) return next()
+    const message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'Uploaded file is too large'
+      : err.message || 'Upload failed'
+    res.status(400).json({ message })
+  })
+}
 
 router.get('/', authMiddleware, async (req, res) => {
   const { categoryId } = req.query
   const where = categoryId ? { categoryId: Number(categoryId) } : {}
   const dishes = await prisma.dish.findMany({
     where,
-    include: { category: true, ratings: { select: { score: true } } },
+    include: { category: true },
     orderBy: { createdAt: 'desc' }
   })
+  const dishIds = dishes.map(d => d.id)
+  const ratingGroups = dishIds.length
+    ? await prisma.dishRating.groupBy({
+        by: ['dishId'],
+        where: { dishId: { in: dishIds } },
+        _avg: { score: true },
+        _count: { _all: true }
+      })
+    : []
+  const ratingMap = new Map(ratingGroups.map(r => [
+    r.dishId,
+    {
+      avgRating: r._avg.score == null ? null : Math.round(r._avg.score * 10) / 10,
+      ratingCount: r._count._all
+    }
+  ]))
   const result = dishes.map(d => {
-    const avgRating = d.ratings.length
-      ? Math.round((d.ratings.reduce((s, r) => s + r.score, 0) / d.ratings.length) * 10) / 10
-      : null
-    const { ratings, ...rest } = d
-    return { ...rest, avgRating, ratingCount: ratings.length }
+    const rating = ratingMap.get(d.id) || { avgRating: null, ratingCount: 0 }
+    return { ...d, ...rating }
   })
   res.json(result)
 })
@@ -44,7 +89,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
   res.json(dish)
 })
 
-router.post('/', adminMiddleware, uploadFields, async (req, res) => {
+router.post('/', adminMiddleware, handleDishUpload, async (req, res) => {
   const { name, categoryId, bvid, description, existingImageUrl, existingVideoUrl, ingredients, cookingSteps } = req.body
   const imageUrl = req.files?.['image']?.[0] ? `/uploads/${req.files['image'][0].filename}` : (existingImageUrl || null)
   const videoUrl = req.files?.['video']?.[0] ? `/uploads/${req.files['video'][0].filename}` : (existingVideoUrl || null)
@@ -59,7 +104,7 @@ router.post('/', adminMiddleware, uploadFields, async (req, res) => {
   }
 })
 
-router.put('/:id', adminMiddleware, uploadFields, async (req, res) => {
+router.put('/:id', adminMiddleware, handleDishUpload, async (req, res) => {
   const { name, categoryId, bvid, description, existingImageUrl, existingVideoUrl, ingredients, cookingSteps } = req.body
   const data = { name, categoryId: Number(categoryId), bvid: bvid || null, description: description || null, ingredients: ingredients || null, cookingSteps: cookingSteps || null }
   if (req.files?.['image']?.[0]) data.imageUrl = `/uploads/${req.files['image'][0].filename}`

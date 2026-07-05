@@ -1,8 +1,6 @@
 const router = require('express').Router()
-const { PrismaClient } = require('@prisma/client')
 const { authMiddleware, adminMiddleware } = require('../middleware/auth')
-
-const prisma = new PrismaClient()
+const prisma = require('../lib/prisma')
 
 // 获取指定日期范围的食材汇总（管理员）
 router.get('/summary', adminMiddleware, async (req, res) => {

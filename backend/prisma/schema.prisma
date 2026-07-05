@@ -105,6 +105,8 @@ model MealPlan {
   user      User       @relation(fields: [userId], references: [id])
   items     MealItem[]
   createdAt DateTime   @default(now())
+
+  @@unique([date, mealType, userId])
 }
 
 model MealItem {

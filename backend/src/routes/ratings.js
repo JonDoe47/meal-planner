@@ -1,8 +1,6 @@
 const router = require('express').Router()
-const { PrismaClient } = require('@prisma/client')
 const { authMiddleware } = require('../middleware/auth')
-
-const prisma = new PrismaClient()
+const prisma = require('../lib/prisma')
 
 // 获取某菜品的所有评价
 router.get('/dish/:dishId', authMiddleware, async (req, res) => {

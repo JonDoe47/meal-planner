@@ -1,10 +1,10 @@
 const router = require('express').Router()
-const { PrismaClient } = require('@prisma/client')
 const { authMiddleware, adminMiddleware } = require('../middleware/auth')
+const prisma = require('../lib/prisma')
 
-const prisma = new PrismaClient()
+const ALLOWED_MEAL_TYPES = new Set(['BREAKFAST', 'LUNCH', 'DINNER'])
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-// 今日食材 badge 数量（管理员用）
 router.get('/ingredient-badge', adminMiddleware, async (req, res) => {
   const today = new Date().toISOString().split('T')[0]
   try {
@@ -15,21 +15,19 @@ router.get('/ingredient-badge', adminMiddleware, async (req, res) => {
     const ingSet = new Set()
     for (const plan of plans) {
       for (const item of plan.items) {
-        if (item.dish.ingredients) {
-          try {
-            const arr = JSON.parse(item.dish.ingredients)
-            arr.forEach(i => ingSet.add(i))
-          } catch {}
-        }
+        if (!item.dish.ingredients) continue
+        try {
+          const arr = JSON.parse(item.dish.ingredients)
+          arr.forEach(i => ingSet.add(i))
+        } catch {}
       }
     }
     res.json({ count: ingSet.size, date: today })
-  } catch (e) {
-    res.json({ count: 0 })
+  } catch {
+    res.json({ count: 0, date: today })
   }
 })
 
-// 获取指定日期范围的点餐（当前用户）
 router.get('/', authMiddleware, async (req, res) => {
   const { startDate, endDate, userId } = req.query
   const where = {}
@@ -41,12 +39,16 @@ router.get('/', authMiddleware, async (req, res) => {
   if (startDate && endDate) {
     where.date = { gte: startDate, lte: endDate }
   }
+
   let plans = await prisma.mealPlan.findMany({
     where,
-    include: { items: { include: { dish: { include: { category: true } } } }, user: { select: { id: true, name: true, role: true } } },
+    include: {
+      items: { include: { dish: { include: { category: true } } } },
+      user: { select: { id: true, name: true, role: true } }
+    },
     orderBy: [{ date: 'asc' }, { mealType: 'asc' }]
   })
-  // 同一天同餐次内，VIP 用户的记录优先展示
+
   if (req.user.role === 'ADMIN') {
     plans.sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? -1 : 1
@@ -56,41 +58,57 @@ router.get('/', authMiddleware, async (req, res) => {
       return 0
     })
   }
+
   res.json(plans)
 })
 
-// 保存点餐（覆盖式，同一天同餐次）
 router.post('/', authMiddleware, async (req, res) => {
   const { date, mealType, dishIds } = req.body
   const userId = req.user.id
+
+  if (!DATE_RE.test(date || '')) {
+    return res.status(400).json({ message: 'Invalid date' })
+  }
+  if (!ALLOWED_MEAL_TYPES.has(mealType)) {
+    return res.status(400).json({ message: 'Invalid meal type' })
+  }
+  if (dishIds !== undefined && (!Array.isArray(dishIds) || dishIds.some(id => !Number.isInteger(Number(id))))) {
+    return res.status(400).json({ message: 'Invalid dish list' })
+  }
+
   try {
-    // 删除旧的
-    const old = await prisma.mealPlan.findFirst({ where: { date, mealType, userId } })
-    if (old) {
-      await prisma.mealPlan.delete({ where: { id: old.id } })
-    }
-    if (!dishIds || dishIds.length === 0) {
-      return res.json({ message: '已清除该餐次' })
-    }
-    const plan = await prisma.mealPlan.create({
-      data: {
-        date, mealType, userId,
-        items: { create: dishIds.map(dishId => ({ dishId })) }
-      },
-      include: { items: { include: { dish: true } } }
+    const plan = await prisma.$transaction(async tx => {
+      await tx.mealPlan.deleteMany({ where: { date, mealType, userId } })
+      if (!dishIds || dishIds.length === 0) return null
+
+      return tx.mealPlan.create({
+        data: {
+          date,
+          mealType,
+          userId,
+          items: {
+            create: [...new Set(dishIds.map(Number))].map(dishId => ({ dishId }))
+          }
+        },
+        include: { items: { include: { dish: true } } }
+      })
     })
+
+    if (!plan) return res.json({ message: 'Meal plan cleared' })
     res.json(plan)
   } catch (e) {
-    res.status(400).json({ message: '保存失败: ' + e.message })
+    res.status(400).json({ message: 'Save failed: ' + e.message })
   }
 })
 
 router.delete('/:id', authMiddleware, async (req, res) => {
   const plan = await prisma.mealPlan.findUnique({ where: { id: Number(req.params.id) } })
-  if (!plan) return res.status(404).json({ message: '记录不存在' })
-  if (plan.userId !== req.user.id && req.user.role !== 'ADMIN') return res.status(403).json({ message: '无权限' })
+  if (!plan) return res.status(404).json({ message: 'Meal plan not found' })
+  if (plan.userId !== req.user.id && req.user.role !== 'ADMIN') {
+    return res.status(403).json({ message: 'Forbidden' })
+  }
   await prisma.mealPlan.delete({ where: { id: Number(req.params.id) } })
-  res.json({ message: '删除成功' })
+  res.json({ message: 'Deleted' })
 })
 
 module.exports = router

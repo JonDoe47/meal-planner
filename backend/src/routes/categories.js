@@ -1,8 +1,6 @@
 const router = require('express').Router()
-const { PrismaClient } = require('@prisma/client')
 const { authMiddleware, adminMiddleware } = require('../middleware/auth')
-
-const prisma = new PrismaClient()
+const prisma = require('../lib/prisma')
 
 router.get('/', authMiddleware, async (req, res) => {
   const categories = await prisma.category.findMany({ orderBy: { sort: 'asc' } })

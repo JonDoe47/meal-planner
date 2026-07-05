@@ -1,8 +1,6 @@
 const router = require('express').Router()
-const { PrismaClient } = require('@prisma/client')
 const { authMiddleware } = require('../middleware/auth')
-
-const prisma = new PrismaClient()
+const prisma = require('../lib/prisma')
 
 router.get('/overview', authMiddleware, async (req, res) => {
   // 支持自定义日期范围，默认近7天
